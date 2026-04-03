@@ -8,8 +8,9 @@
 
 import type { ExtensionMessage, Question } from "../shared/types";
 
-const BACKEND_WS_URL = "ws://localhost:8000/ws/live-questions";
-const AUDIO_CHUNK_MS = 2_000;
+const BACKEND_WS_URL = "ws://localhost:8000/ws/live";
+const AUDIO_CHUNK_MS = 5_000;
+const HEARTBEAT_MS = 30_000;
 const RECONNECT_BASE_MS = 1_500;
 const RECONNECT_MAX_MS = 12_000;
 
@@ -17,6 +18,7 @@ let liveSocket: WebSocket | null = null;
 let socketSessionId: string | null = null;
 let reconnectAttempt = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 let captureStream: MediaStream | null = null;
 let mediaRecorder: MediaRecorder | null = null;
@@ -36,7 +38,9 @@ function isQuestion(value: unknown): value is Question {
     typeof candidate.question_id === "string" &&
     typeof candidate.question === "string" &&
     (candidate.type === "mcq" || candidate.type === "short_answer") &&
-    (candidate.difficulty === "easy" || candidate.difficulty === "medium" || candidate.difficulty === "hard") &&
+    (candidate.difficulty === "easy" ||
+      candidate.difficulty === "medium" ||
+      candidate.difficulty === "hard") &&
     Array.isArray(candidate.options) &&
     typeof candidate.answer === "string" &&
     typeof candidate.explanation === "string" &&
@@ -51,6 +55,13 @@ function clearReconnectTimer(): void {
   }
 }
 
+function clearHeartbeatTimer(): void {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
 function closeSocket(): void {
   if (!liveSocket) return;
 
@@ -60,6 +71,7 @@ function closeSocket(): void {
   liveSocket.onclose = null;
   liveSocket.close();
   liveSocket = null;
+  clearHeartbeatTimer();
 }
 
 function stopAudioCapture(): void {
@@ -82,6 +94,7 @@ function stopAudioCapture(): void {
 
 async function stopLivePipeline(): Promise<void> {
   clearReconnectTimer();
+  clearHeartbeatTimer();
   closeSocket();
   stopAudioCapture();
   socketSessionId = null;
@@ -89,36 +102,19 @@ async function stopLivePipeline(): Promise<void> {
   captureAttemptedSessionId = null;
 }
 
-function arrayBufferToBase64(input: ArrayBuffer): string {
-  const bytes = new Uint8Array(input);
-  let binary = "";
-
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    const chunk = bytes.subarray(i, i + 0x8000);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
-}
-
-async function sendAudioChunk(blob: Blob, sessionId: string): Promise<void> {
+async function sendAudioChunk(blob: Blob): Promise<void> {
   if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return;
 
   try {
-    const payload = {
-      type: "audio_chunk",
-      session_id: sessionId,
-      audio_base64: arrayBufferToBase64(await blob.arrayBuffer()),
-    };
-
-    liveSocket.send(JSON.stringify(payload));
+    liveSocket.send(blob);
   } catch (err) {
     console.warn("[LP BG] Failed to forward audio chunk:", err);
   }
 }
 
 async function ensureAudioCapture(sessionId: string): Promise<void> {
-  if (captureSessionId === sessionId && mediaRecorder?.state === "recording") return;
+  if (captureSessionId === sessionId && mediaRecorder?.state === "recording")
+    return;
   if (captureAttemptedSessionId === sessionId) return;
 
   captureAttemptedSessionId = sessionId;
@@ -129,7 +125,9 @@ async function ensureAudioCapture(sessionId: string): Promise<void> {
   }
 
   if (typeof MediaRecorder === "undefined") {
-    console.warn("[LP BG] MediaRecorder unavailable in service worker context.");
+    console.warn(
+      "[LP BG] MediaRecorder unavailable in service worker context.",
+    );
     return;
   }
 
@@ -138,7 +136,10 @@ async function ensureAudioCapture(sessionId: string): Promise<void> {
     (stream: MediaStream | null) => {
       const runtimeError = chrome.runtime.lastError;
       if (runtimeError || !stream) {
-        console.warn("[LP BG] Audio capture not started:", runtimeError?.message);
+        console.warn(
+          "[LP BG] Audio capture not started:",
+          runtimeError?.message,
+        );
         return;
       }
 
@@ -153,7 +154,7 @@ async function ensureAudioCapture(sessionId: string): Promise<void> {
 
         recorder.ondataavailable = (event: BlobEvent) => {
           if (!event.data || event.data.size === 0) return;
-          void sendAudioChunk(event.data, sessionId);
+          void sendAudioChunk(event.data);
         };
 
         recorder.onerror = (event) => {
@@ -168,11 +169,14 @@ async function ensureAudioCapture(sessionId: string): Promise<void> {
         console.warn("[LP BG] Failed to initialize audio recorder:", err);
         stopAudioCapture();
       }
-    }
+    },
   );
 }
 
-function parseShowQuizMessage(rawData: unknown, fallbackSessionId: string): ExtensionMessage | null {
+function parseShowQuizMessage(
+  rawData: unknown,
+  fallbackSessionId: string,
+): ExtensionMessage | null {
   if (typeof rawData !== "string") return null;
 
   try {
@@ -208,7 +212,7 @@ function scheduleReconnect(sessionId: string): void {
 
   const delay = Math.min(
     RECONNECT_BASE_MS * Math.max(1, 2 ** reconnectAttempt),
-    RECONNECT_MAX_MS
+    RECONNECT_MAX_MS,
   );
 
   reconnectAttempt += 1;
@@ -221,7 +225,8 @@ function scheduleReconnect(sessionId: string): void {
 async function connectWebSocket(sessionId: string): Promise<void> {
   if (
     liveSocket &&
-    (liveSocket.readyState === WebSocket.OPEN || liveSocket.readyState === WebSocket.CONNECTING) &&
+    (liveSocket.readyState === WebSocket.OPEN ||
+      liveSocket.readyState === WebSocket.CONNECTING) &&
     socketSessionId === sessionId
   ) {
     return;
@@ -232,20 +237,20 @@ async function connectWebSocket(sessionId: string): Promise<void> {
   socketSessionId = sessionId;
 
   const socket = new WebSocket(
-    `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}`
+    `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}`,
   );
   liveSocket = socket;
 
   socket.onopen = () => {
     reconnectAttempt = 0;
 
-    socket.send(
-      JSON.stringify({
-        type: "hello",
-        session_id: sessionId,
-        source: "extension-background",
-      })
-    );
+    socket.send(JSON.stringify({ type: "hello", session_id: sessionId }));
+
+    clearHeartbeatTimer();
+    heartbeatTimer = setInterval(() => {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: "ping", session_id: sessionId }));
+    }, HEARTBEAT_MS);
 
     console.info("[LP BG] Live socket connected.");
   };
@@ -263,6 +268,7 @@ async function connectWebSocket(sessionId: string): Promise<void> {
   };
 
   socket.onclose = () => {
+    clearHeartbeatTimer();
     if (liveSocket === socket) {
       liveSocket = null;
       if (socketSessionId === sessionId) {
@@ -280,7 +286,8 @@ async function syncLivePipeline(): Promise<void> {
   ]);
 
   const enabled = isExtensionEnabled(stored.extensionEnabled);
-  const sessionId = typeof stored.sessionId === "string" ? stored.sessionId : null;
+  const sessionId =
+    typeof stored.sessionId === "string" ? stored.sessionId : null;
 
   if (!enabled || !sessionId) {
     await stopLivePipeline();
@@ -312,7 +319,7 @@ chrome.runtime.onMessage.addListener(
       handleBadgeUpdate(message.status, message.scorePercent);
     }
     // Future: add relay logic for other message types here
-  }
+  },
 );
 
 /**
@@ -324,7 +331,7 @@ chrome.runtime.onMessage.addListener(
  */
 function handleBadgeUpdate(
   status: "ACTIVE" | "IDLE",
-  scorePercent?: number
+  scorePercent?: number,
 ): void {
   if (status === "ACTIVE") {
     const text =
@@ -376,10 +383,13 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
  *   relayQuizToActiveTab({ type: "SHOW_QUIZ", question, session_id });
  */
 export async function relayQuizToActiveTab(
-  message: ExtensionMessage
+  message: ExtensionMessage,
 ): Promise<void> {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
     if (!tab?.id) {
       console.warn("[LP BG] No active tab found — cannot relay quiz.");
       return;
