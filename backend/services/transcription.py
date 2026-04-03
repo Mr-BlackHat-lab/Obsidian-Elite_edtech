@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import os
 import tempfile
+from functools import lru_cache
 from urllib.parse import parse_qs, urlparse
 
 from youtube_transcript_api import YouTubeTranscriptApi
+
+
+CAPTION_CACHE_SIZE = max(1, int(os.getenv("YOUTUBE_CAPTION_CACHE_SIZE", "128")))
 
 
 def extract_youtube_video_id(url: str) -> str | None:
@@ -18,16 +22,30 @@ def extract_youtube_video_id(url: str) -> str | None:
     return None
 
 
-def get_youtube_captions(video_id: str) -> str:
-    """Fetch YouTube captions and flatten them to plain text."""
+@lru_cache(maxsize=CAPTION_CACHE_SIZE)
+def _get_youtube_captions_cached(video_id: str) -> str:
+    """Fetch and cache YouTube captions text to reduce repeated lookup latency."""
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        text = " ".join(item.get("text", "").strip() for item in transcript).strip()
+        transcript_rows = []
+
+        # Newer versions expose instance fetch(); older versions use get_transcript().
+        if hasattr(YouTubeTranscriptApi, "fetch"):
+            fetched = YouTubeTranscriptApi().fetch(video_id)
+            transcript_rows = [{"text": getattr(item, "text", "")} for item in fetched]
+        else:
+            transcript_rows = YouTubeTranscriptApi.get_transcript(video_id)
+
+        text = " ".join(item.get("text", "").strip() for item in transcript_rows).strip()
         if not text:
             raise ValueError("Captions were empty")
         return text
     except Exception as exc:  # pragma: no cover - network/provider dependent
         raise ValueError(f"Could not fetch captions for {video_id}: {exc}") from exc
+
+
+def get_youtube_captions(video_id: str) -> str:
+    """Fetch YouTube captions and flatten them to plain text."""
+    return _get_youtube_captions_cached(video_id)
 
 
 async def transcribe_audio_file(file_path: str) -> str:
