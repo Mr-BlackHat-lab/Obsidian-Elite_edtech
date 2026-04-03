@@ -5,8 +5,8 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from config import API_BASE, check_backend_health
 
-API_BASE = "http://localhost:8000"
 console = Console()
 
 
@@ -43,6 +43,7 @@ def _fetch_progress(user_id: str) -> dict:
 def progress_command(user_id: str) -> None:
     """Show a progress dashboard with performance metrics."""
     try:
+        check_backend_health(console)
         data = _fetch_progress(user_id)
         accuracy_pct = int(float(data.get("overall_accuracy", 0.0)) * 100)
         sessions_completed = data.get("total_sessions", data.get("sessions_completed", 0))
@@ -57,9 +58,10 @@ def progress_command(user_id: str) -> None:
             topic_rows = list(topic_breakdown)
 
         top_panel = Panel(
-            f"Overall Accuracy:   {accuracy_pct}%\n"
+            f"User:              {data.get('user_id', user_id)}\n"
+            f"Overall Accuracy:  {accuracy_pct}%\n"
             f"Sessions Completed: {sessions_completed}\n"
-            f"Total Questions:    {data.get('total_questions', 0)}",
+            f"Total Questions:   {data.get('total_questions', 0)}",
             title="LearnPulse — Performance Report",
             border_style="bright_blue",
         )
@@ -81,7 +83,7 @@ def progress_command(user_id: str) -> None:
 
     except requests.exceptions.ConnectionError:
         console.print(
-            "[red]Could not connect to FastAPI at http://localhost:8000.[/red] "
+            f"[red]Could not connect to FastAPI at {API_BASE}.[/red] "
             "Start backend services and try again."
         )
     except requests.RequestException as exc:
