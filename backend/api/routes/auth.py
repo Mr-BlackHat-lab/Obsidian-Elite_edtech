@@ -10,6 +10,7 @@ from jose import jwt
 from passlib.context import CryptContext
 from starlette.config import Config
 
+
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
@@ -24,14 +25,6 @@ JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
 config = Config(".env")
 oauth = OAuth(config)
-
-oauth.register(
-    name="google",
-    client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
-    client_secret=os.getenv("GOOGLE_CLIENT_SECRET", ""),
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
-)
 
 oauth.register(
     name="github",
@@ -106,27 +99,6 @@ async def login(req: UserCreateRequest, request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"user_id": user["user_id"], "username": user["username"]})
     return {"user_id": user["user_id"], "username": user["username"], "token": token}
-
-
-# ---------------------------------------------------------------------------
-# Google OAuth
-# ---------------------------------------------------------------------------
-
-@router.get("/google")
-async def google_login(request: Request):
-    redirect_uri = request.url_for("google_callback")
-    return await oauth.google.authorize_redirect(request, redirect_uri)
-
-
-@router.get("/google/callback", name="google_callback")
-async def google_callback(request: Request):
-    token = await oauth.google.authorize_access_token(request)
-    user_info = token.get("userinfo") or await oauth.google.userinfo(token=token)
-    email = user_info["email"]
-    username = user_info.get("name", email).replace(" ", "_")
-    user_doc = await _get_or_create_oauth_user(request.app.state.db, email, username, "google")
-    jwt_token = create_access_token({"user_id": user_doc["user_id"], "username": user_doc["username"]})
-    return RedirectResponse(url=f"/?token={jwt_token}")
 
 
 # ---------------------------------------------------------------------------
