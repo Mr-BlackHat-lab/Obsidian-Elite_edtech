@@ -128,7 +128,13 @@ YOUTUBE_API_KEY=
 WHISPER_MODEL=base
 APP_ENV=development
 DEBUG=true
+BACKEND_URL=http://localhost:8000
 ```
+
+CLI note:
+
+- `BACKEND_URL` (or `CLI_BACKEND_URL`) controls where CLI commands send API requests.
+- Default remains `http://localhost:8000` when not set.
 
 Security rules:
 

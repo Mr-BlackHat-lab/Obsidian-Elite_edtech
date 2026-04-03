@@ -8,14 +8,15 @@ import click
 import requests
 from rich.console import Console
 from rich.panel import Panel
+from config import API_BASE, check_backend_health
 
-API_BASE = "http://localhost:8000"
 console = Console()
 
 
 def _mock_session(session_id: str) -> dict:
     return {
         "session_id": session_id,
+        "user_id": "anonymous",
         "questions": [
             {
                 "question_id": "q1",
@@ -127,8 +128,20 @@ def _render_question(question: dict, index: int, total: int) -> None:
 def test_command(session_id: str, export_path: Path | None) -> None:
     """Run an interactive test for a session."""
     try:
+        check_backend_health(console)
         session = _fetch_session(session_id)
         questions = session.get("questions", [])
+        resolved_session_id = str(session.get("session_id", session_id))
+        resolved_user_id = str(session.get("user_id", "unknown"))
+
+        console.print(
+            Panel(
+                f"Session: {resolved_session_id}\nUser: {resolved_user_id}",
+                title="Active Quiz Context",
+                border_style="bright_blue",
+            )
+        )
+
         if not questions:
             console.print("[yellow]No questions available for this session.[/yellow]")
             return
@@ -169,7 +182,8 @@ def test_command(session_id: str, export_path: Path | None) -> None:
                 click.pause("Press ENTER for next question")
 
         summary = {
-            "session_id": session_id,
+            "session_id": resolved_session_id,
+            "user_id": resolved_user_id,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
             "total_questions": len(questions),
             "correct_answers": correct_count,
@@ -183,7 +197,7 @@ def test_command(session_id: str, export_path: Path | None) -> None:
 
     except requests.exceptions.ConnectionError:
         console.print(
-            "[red]Could not connect to FastAPI at http://localhost:8000.[/red] "
+            f"[red]Could not connect to FastAPI at {API_BASE}.[/red] "
             "Start backend services and try again."
         )
     except requests.exceptions.Timeout:

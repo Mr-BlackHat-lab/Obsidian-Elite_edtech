@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import os
-
 import click
 import requests
 from redis import Redis
 from redis.exceptions import RedisError
 from rich.console import Console
+from config import API_BASE, REDIS_URL, check_backend_health
 
-API_BASE = "http://localhost:8000"
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 VIDEO_CACHE_TTL = 86400
 console = Console()
 
@@ -39,10 +36,20 @@ def _set_cached_session(video_url: str, session_id: str) -> None:
 
 @click.command("process")
 @click.option("--url", required=True, type=str, help="YouTube URL or video URL to process.")
-def process_command(url: str) -> None:
+@click.option(
+    "--user-id",
+    required=False,
+    default="anonymous",
+    show_default=True,
+    type=str,
+    help="User ID (username) to associate with the created/reused session.",
+)
+def process_command(url: str, user_id: str) -> None:
     """Process a video URL and create a quiz session."""
+    check_backend_health(console)
+
     endpoint = f"{API_BASE}/transcribe"
-    payload = {"video_url": url}
+    payload = {"video_url": url, "user_id": user_id}
 
     try:
         with console.status(
@@ -72,11 +79,13 @@ def process_command(url: str) -> None:
 
         session_id = data.get("session_id", "unknown-session")
         console.print(f"[green]Success:[/green] session created: [bold]{session_id}[/bold]")
+        console.print(f"User: [bold]{user_id}[/bold]")
         console.print(f"Run: [bold]python cli/main.py test --session-id {session_id}[/bold]")
+        console.print(f"Run: [bold]python cli/main.py progress --user-id {user_id}[/bold]")
 
     except requests.exceptions.ConnectionError:
         console.print(
-            "[red]Could not connect to FastAPI at http://localhost:8000.[/red] "
+            f"[red]Could not connect to FastAPI at {API_BASE}.[/red] "
             "Start backend services and try again."
         )
     except requests.exceptions.Timeout:
