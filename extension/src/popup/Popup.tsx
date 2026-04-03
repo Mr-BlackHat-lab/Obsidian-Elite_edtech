@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import Dashboard from "./Dashboard";
+import type { ExtensionMessage } from "../shared/types";
 
 interface PopupStats {
   sessionScore: number;
@@ -46,6 +47,74 @@ type PopupStorageSnapshot = Partial<{
   extensionEnabled: boolean;
 }>;
 
+interface SiteInfo {
+  siteLabel: string;
+  supportedPage: boolean;
+}
+
+interface TabVideoStatusResponse {
+  extensionDetected: boolean;
+  videoFound: boolean;
+  videoPlaying: boolean;
+  extensionEnabled: boolean;
+}
+
+interface TabDebugState {
+  siteLabel: string;
+  supportedPage: boolean;
+  extensionDetected: boolean;
+  videoLabel: string;
+  debugNote: string;
+}
+
+const DEFAULT_TAB_DEBUG: TabDebugState = {
+  siteLabel: "Checking tab...",
+  supportedPage: false,
+  extensionDetected: false,
+  videoLabel: "Checking...",
+  debugNote: "Waiting for active tab",
+};
+
+function classifySite(urlValue: string | undefined): SiteInfo {
+  if (!urlValue) {
+    return { siteLabel: "No active tab", supportedPage: false };
+  }
+
+  try {
+    const parsed = new URL(urlValue);
+    const host = parsed.hostname;
+    const path = parsed.pathname;
+
+    if (host === "www.youtube.com" && path.startsWith("/watch")) {
+      return { siteLabel: "YouTube", supportedPage: true };
+    }
+
+    if (host.endsWith(".udemy.com") && path.startsWith("/course/")) {
+      return { siteLabel: "Udemy", supportedPage: true };
+    }
+
+    if (host.endsWith(".coursera.org") && path.startsWith("/learn/")) {
+      return { siteLabel: "Coursera", supportedPage: true };
+    }
+
+    if (host.includes("youtube.com")) {
+      return { siteLabel: "YouTube (unsupported page)", supportedPage: false };
+    }
+
+    if (host.includes("udemy.com")) {
+      return { siteLabel: "Udemy (unsupported page)", supportedPage: false };
+    }
+
+    if (host.includes("coursera.org")) {
+      return { siteLabel: "Coursera (unsupported page)", supportedPage: false };
+    }
+
+    return { siteLabel: "Unsupported website", supportedPage: false };
+  } catch {
+    return { siteLabel: "Unknown website", supportedPage: false };
+  }
+}
+
 function readNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -64,6 +133,7 @@ function Popup() {
   const [active, setActive] = useState<boolean>(false);
   const [extensionEnabled, setExtensionEnabled] = useState<boolean>(true);
   const [stats, setStats] = useState<PopupStats>(EMPTY_STATS);
+  const [tabDebug, setTabDebug] = useState<TabDebugState>(DEFAULT_TAB_DEBUG);
   const [loaded, setLoaded] = useState<boolean>(false);
 
   // ── Load initial state from chrome.storage.local ──────────
@@ -127,6 +197,84 @@ function Popup() {
     });
   }, [extensionEnabled]);
 
+  const refreshTabDebug = useCallback(() => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      const siteInfo = classifySite(tab?.url);
+
+      if (!tab?.id) {
+        setTabDebug({
+          siteLabel: siteInfo.siteLabel,
+          supportedPage: siteInfo.supportedPage,
+          extensionDetected: false,
+          videoLabel: "No tab selected",
+          debugNote: "Could not access active tab",
+        });
+        return;
+      }
+
+      if (!siteInfo.supportedPage) {
+        setTabDebug({
+          siteLabel: siteInfo.siteLabel,
+          supportedPage: false,
+          extensionDetected: false,
+          videoLabel: "Unsupported page",
+          debugNote: "Open a supported video page for detection",
+        });
+        return;
+      }
+
+      const message: ExtensionMessage = { type: "GET_VIDEO_STATUS" };
+
+      chrome.tabs.sendMessage(
+        tab.id,
+        message,
+        (response: TabVideoStatusResponse | undefined) => {
+          const runtimeError = chrome.runtime.lastError;
+
+          if (runtimeError || !response) {
+            console.debug("[LP Popup][Debug] Content script not detected:", runtimeError?.message);
+            setTabDebug({
+              siteLabel: siteInfo.siteLabel,
+              supportedPage: true,
+              extensionDetected: false,
+              videoLabel: "No content response",
+              debugNote: "Extension did not detect this page yet",
+            });
+            return;
+          }
+
+          const videoLabel = response.videoFound
+            ? response.videoPlaying
+              ? "Video playing"
+              : "Video paused"
+            : "No video found";
+
+          console.debug("[LP Popup][Debug] Detection response:", response);
+          setTabDebug({
+            siteLabel: siteInfo.siteLabel,
+            supportedPage: true,
+            extensionDetected: response.extensionDetected,
+            videoLabel,
+            debugNote: response.extensionEnabled
+              ? "Content script detected on this tab"
+              : "Extension toggle is OFF on this page",
+          });
+        }
+      );
+    });
+  }, []);
+
+  useEffect(() => {
+    refreshTabDebug();
+
+    const intervalId = window.setInterval(() => {
+      refreshTabDebug();
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [refreshTabDebug]);
+
   const statusClass = !extensionEnabled
     ? "is-disabled"
     : active
@@ -184,6 +332,28 @@ function Popup() {
         >
           {extensionEnabled ? "ON" : "OFF"}
         </button>
+      </div>
+
+      <div className="lp-tab-debug">
+        <div className="lp-tab-debug-row">
+          <span className="lp-tab-debug-key">Website</span>
+          <span className={`lp-tab-debug-value ${tabDebug.supportedPage ? "tone-good" : "tone-warn"}`}>
+            {tabDebug.siteLabel}
+          </span>
+        </div>
+        <div className="lp-tab-debug-row">
+          <span className="lp-tab-debug-key">Detection</span>
+          <span className={`lp-tab-debug-value ${tabDebug.extensionDetected ? "tone-good" : "tone-bad"}`}>
+            {tabDebug.extensionDetected ? "Detected" : "Not detected"}
+          </span>
+        </div>
+        <div className="lp-tab-debug-row">
+          <span className="lp-tab-debug-key">Video</span>
+          <span className={`lp-tab-debug-value ${tabDebug.videoLabel === "Video playing" ? "tone-good" : "tone-muted"}`}>
+            {tabDebug.videoLabel}
+          </span>
+        </div>
+        <p className="lp-tab-debug-note">{tabDebug.debugNote}</p>
       </div>
 
       {/* ── Divider ── */}

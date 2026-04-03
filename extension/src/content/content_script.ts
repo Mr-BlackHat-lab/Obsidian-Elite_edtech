@@ -48,6 +48,13 @@ function isEnabledSetting(value: unknown): boolean {
   return typeof value === "boolean" ? value : true;
 }
 
+interface VideoStatusResponse {
+  extensionDetected: boolean;
+  videoFound: boolean;
+  videoPlaying: boolean;
+  extensionEnabled: boolean;
+}
+
 // ============================================================
 // 1. INITIALIZATION — Run when page loads
 // ============================================================
@@ -328,7 +335,27 @@ function updateBadge(status: "ACTIVE" | "IDLE", scorePercent?: number): void {
 // ============================================================
 // 10. RECEIVE LIVE QUESTIONS FROM T2 BACKGROUND SCRIPT
 // ============================================================
-chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+  if (message.type === "GET_VIDEO_STATUS") {
+    const currentVideo = videoRef ?? document.querySelector<HTMLVideoElement>("video");
+    const isPlaying =
+      !!currentVideo &&
+      !currentVideo.paused &&
+      !currentVideo.ended &&
+      currentVideo.readyState >= 2;
+
+    const response: VideoStatusResponse = {
+      extensionDetected: true,
+      videoFound: !!currentVideo,
+      videoPlaying: isPlaying,
+      extensionEnabled,
+    };
+
+    console.debug("[LP][Debug] Popup requested video status:", response);
+    sendResponse(response);
+    return;
+  }
+
   if (!extensionEnabled) return;
 
   if (message.type === "SHOW_QUIZ") {
@@ -346,6 +373,8 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
 // START
 // ============================================================
 async function bootstrap(): Promise<void> {
+  console.debug("[LP][Debug] Content script injected on:", window.location.href);
+
   const settings = await chrome.storage.local.get(STORAGE_KEYS.extensionSettings);
   extensionEnabled = isEnabledSetting(settings.extensionEnabled);
 

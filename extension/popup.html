@@ -215,6 +215,62 @@
       box-shadow: 0 0 12px rgba(255, 159, 188, 0.35);
     }
 
+    .lp-tab-debug {
+      border: 1px solid rgba(145, 204, 255, 0.2);
+      border-radius: 10px;
+      background: rgba(14, 31, 62, 0.42);
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .lp-tab-debug-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .lp-tab-debug-key {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--lp-text-dim);
+    }
+
+    .lp-tab-debug-value {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--lp-text-muted);
+      text-align: right;
+    }
+
+    .lp-tab-debug-value.tone-good {
+      color: var(--lp-success);
+    }
+
+    .lp-tab-debug-value.tone-bad {
+      color: var(--lp-danger);
+    }
+
+    .lp-tab-debug-value.tone-warn {
+      color: var(--lp-warn);
+    }
+
+    .lp-tab-debug-value.tone-muted {
+      color: var(--lp-text-muted);
+    }
+
+    .lp-tab-debug-note {
+      margin-top: 1px;
+      font-size: 10px;
+      color: var(--lp-text-dim);
+      line-height: 1.35;
+    }
+
     .lp-popup-divider {
       height: 1px;
       background: linear-gradient(90deg, transparent, rgba(124, 235, 255, 0.45), rgba(182, 172, 255, 0.32), transparent);
