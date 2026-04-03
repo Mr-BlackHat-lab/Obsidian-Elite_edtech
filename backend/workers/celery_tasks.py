@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from celery import Celery
+from celery.exceptions import MaxRetriesExceededError
 from motor.motor_asyncio import AsyncIOMotorClient
 from redis import Redis
 from redis.exceptions import RedisError
@@ -169,7 +170,22 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             loop.run_until_complete(_persist_cached())
             return
 
-        transcript = loop.run_until_complete(get_transcript(video_url))
+        try:
+            transcript = loop.run_until_complete(get_transcript(video_url))
+        except ValueError as exc:
+            async def _mark_failed() -> None:
+                client = AsyncIOMotorClient(mongodb_url)
+                try:
+                    db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
+                    db = client[db_name]
+                    await db.sessions.update_one(
+                        {"session_id": session_id},
+                        {"$set": {"status": "failed", "error": str(exc)}},
+                    )
+                finally:
+                    client.close()
+            loop.run_until_complete(_mark_failed())
+            return
         chunks = chunk_transcript(transcript, chunk_size=500)
 
         concept_index = SessionConceptIndex()
@@ -233,6 +249,24 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
         if questions:
             _save_cached_questions(video_url, questions)
 
+    except MaxRetriesExceededError as exc:
+        # All retries exhausted — mark session failed so the extension stops polling
+        async def _mark_exhausted() -> None:
+            client = AsyncIOMotorClient(mongodb_url)
+            try:
+                db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
+                db = client[db_name]
+                await db.sessions.update_one(
+                    {"session_id": session_id},
+                    {"$set": {"status": "failed", "error": f"Task retries exhausted: {exc}"}},
+                )
+            finally:
+                client.close()
+        loop2 = asyncio.new_event_loop()
+        try:
+            loop2.run_until_complete(_mark_exhausted())
+        finally:
+            loop2.close()
     except Exception as exc:  # pragma: no cover - task retry path
         raise self.retry(exc=exc, countdown=10)
     finally:

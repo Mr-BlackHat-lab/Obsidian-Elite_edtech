@@ -37,7 +37,8 @@ class Session(BaseModel):
     score: float = 0.0
     weak_topics: list[str] = Field(default_factory=list)
     source: Literal["recorded", "live"] = "recorded"
-    status: Literal["processing", "ready", "error"] = "processing"
+    status: Literal["processing", "live", "ready", "failed", "error"] = "processing"
+    error: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
