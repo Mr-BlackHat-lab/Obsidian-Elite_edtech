@@ -5,10 +5,15 @@ import tempfile
 from functools import lru_cache
 from urllib.parse import parse_qs, urlparse
 
-from youtube_transcript_api import YouTubeTranscriptApi
+try:
+    from youtube_transcript_api import YouTubeTranscriptApi
+except ImportError:  # pragma: no cover - depends on environment packages
+    YouTubeTranscriptApi = None
 
 
 CAPTION_CACHE_SIZE = max(1, int(os.getenv("YOUTUBE_CAPTION_CACHE_SIZE", "128")))
+WHISPER_ENABLED = os.getenv("WHISPER_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
 
 
 def extract_youtube_video_id(url: str) -> str | None:
@@ -26,6 +31,9 @@ def extract_youtube_video_id(url: str) -> str | None:
 def _get_youtube_captions_cached(video_id: str) -> str:
     """Fetch and cache YouTube captions text to reduce repeated lookup latency."""
     try:
+        if YouTubeTranscriptApi is None:
+            raise ValueError("youtube-transcript-api package is not installed")
+
         transcript_rows = []
 
         # Newer versions expose instance fetch(); older versions use get_transcript().
@@ -49,17 +57,44 @@ def get_youtube_captions(video_id: str) -> str:
 
 
 async def transcribe_audio_file(file_path: str) -> str:
-    """Placeholder for file transcription in Gemini-only mode."""
-    if file_path:
-        raise ValueError(
-            "Direct file transcription is disabled in Gemini-only mode. "
-            "Use YouTube caption path or provide transcript chunks from the client."
-        )
-    return ""
+    """Best-effort audio transcription for live pipeline use.
+
+    - Returns empty string when whisper is disabled (default free-tier path).
+    - If enabled, tries OpenAI Whisper when OPENAI_API_KEY is available.
+    """
+    if not WHISPER_ENABLED:
+        return ""
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return ""
+
+    try:
+        import openai
+
+        client = openai.AsyncOpenAI(api_key=api_key)
+        with open(file_path, "rb") as audio_file:
+            response = await client.audio.transcriptions.create(
+                model=WHISPER_MODEL,
+                file=audio_file,
+                response_format="text",
+            )
+        return str(response or "")
+    except Exception:
+        return ""
 
 
 async def transcribe_chunk_async(audio_bytes: bytes) -> str:
-    """Transcribe raw audio chunks in Gemini-only mode (currently disabled)."""
+    """Transcribe raw audio chunks for WebSocket live pipeline.
+
+    Designed for T2 imports/calls: never raises hard failures, returns best-effort text.
+    """
+    if not audio_bytes:
+        return ""
+
+    if not WHISPER_ENABLED:
+        return ""
+
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
