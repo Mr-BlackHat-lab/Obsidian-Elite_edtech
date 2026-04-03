@@ -326,7 +326,7 @@ export function mountQuizOverlay(
 
   const styleEl = document.createElement("style");
   styleEl.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
 
     * {
       box-sizing: border-box;
@@ -343,26 +343,26 @@ export function mountQuizOverlay(
       align-items: center;
       justify-content: center;
       z-index: 2147483647;
-      background: rgba(0, 0, 0, 0.72);
-      backdrop-filter: blur(10px);
-      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-      padding: 20px;
+      background: rgba(15, 15, 15, 0.8);
+      backdrop-filter: blur(6px);
+      font-family: 'Roboto', 'Segoe UI', system-ui, sans-serif;
+      padding: 24px;
     }
 
     .lp-card {
-      background: linear-gradient(145deg, #12121f 0%, #0e0e1c 100%);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: 20px;
-      padding: 32px 36px;
-      width: 560px;
+      background: linear-gradient(180deg, #1f1f1f 0%, #181818 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 30px 32px;
+      width: 620px;
       max-width: 100%;
       max-height: 90vh;
       overflow-y: auto;
       box-shadow:
-        0 32px 80px rgba(0, 0, 0, 0.7),
-        0 0 0 1px rgba(99, 102, 241, 0.15),
+        0 26px 70px rgba(0, 0, 0, 0.75),
+        0 0 0 1px rgba(255, 255, 255, 0.04),
         inset 0 1px 0 rgba(255, 255, 255, 0.05);
-      color: #e2e8f0;
+      color: #f1f1f1;
       transform: translateY(-28px) scale(0.96);
       opacity: 0;
       transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
@@ -383,11 +383,9 @@ export function mountQuizOverlay(
 
     .lp-brand {
       font-size: 15px;
-      font-weight: 800;
-      letter-spacing: 0.3px;
-      background: linear-gradient(90deg, #818cf8, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      font-weight: 900;
+      letter-spacing: 0.2px;
+      color: #f1f1f1;
     }
 
     .lp-header-badges {
@@ -409,35 +407,35 @@ export function mountQuizOverlay(
     }
 
     .lp-badge--difficulty {
-      color: #fff;
+      color: #f1f1f1;
       font-weight: 800;
       letter-spacing: 0.8px;
     }
 
     .lp-difficulty--easy {
-      background: #22c55e;
-      box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+      background: #272727;
+      border: 1px solid #4f4f4f;
     }
 
     .lp-difficulty--medium {
-      background: #f59e0b;
-      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+      background: #303030;
+      border: 1px solid #676767;
     }
 
     .lp-difficulty--hard {
-      background: #ef4444;
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+      background: #3a3a3a;
+      border: 1px solid #888888;
     }
 
     .lp-badge--concept {
-      color: #c7d2fe;
-      background: rgba(99, 102, 241, 0.25);
-      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #d0d0d0;
+      background: #262626;
+      border: 1px solid #3f3f3f;
     }
 
     .lp-divider {
       height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.4), transparent);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
       margin-bottom: 22px;
     }
 
@@ -445,7 +443,7 @@ export function mountQuizOverlay(
       font-size: 17px;
       font-weight: 600;
       line-height: 1.6;
-      color: #f1f5f9;
+      color: #f1f1f1;
       margin: 0 0 22px 0;
     }
 
@@ -458,7 +456,7 @@ export function mountQuizOverlay(
 
     .lp-options-hint {
       font-size: 11px;
-      color: #4a4a6a;
+      color: #8f8f8f;
       margin-top: 4px;
       text-align: right;
     }
@@ -470,9 +468,9 @@ export function mountQuizOverlay(
       width: 100%;
       padding: 13px 16px;
       border-radius: 10px;
-      border: 2px solid #2d2d44;
-      background: #1a1a2e;
-      color: #e2e8f0;
+      border: 2px solid #3a3a3a;
+      background: #232323;
+      color: #f1f1f1;
       font-size: 14px;
       text-align: left;
       cursor: pointer;
@@ -482,7 +480,8 @@ export function mountQuizOverlay(
     }
 
     .lp-opt:not(:disabled):hover {
-      border-color: #6366f1;
+      border-color: #6d6d6d;
+      background: #282828;
     }
 
     .lp-opt:disabled {
@@ -490,40 +489,40 @@ export function mountQuizOverlay(
     }
 
     .lp-opt--selected {
-      background: #312e81;
-      border-color: #818cf8;
+      background: #2e2e2e;
+      border-color: #f1f1f1;
     }
 
     .lp-opt--correct {
-      background: #052e16;
-      border-color: #22c55e;
-      color: #dcfce7;
+      background: #1e2a1f;
+      border-color: #4f8b57;
+      color: #def2e1;
     }
 
     .lp-opt--wrong {
-      background: #3f0f0f;
-      border-color: #ef4444;
-      color: #fee2e2;
+      background: #2f1f1f;
+      border-color: #b45a5a;
+      color: #ffdada;
     }
 
     .lp-opt-key {
       min-width: 24px;
       height: 24px;
       border-radius: 6px;
-      background: #2d2d44;
+      background: #323232;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       font-size: 11px;
       font-weight: 700;
-      color: #818cf8;
+      color: #e5e5e5;
       flex-shrink: 0;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     }
 
     .lp-opt--selected .lp-opt-key {
-      background: #6366f1;
-      color: #fff;
+      background: #f1f1f1;
+      color: #151515;
     }
 
     .lp-opt-text {
@@ -538,10 +537,10 @@ export function mountQuizOverlay(
     .lp-short-answer {
       width: 100%;
       min-height: 110px;
-      background: #1a1a2e;
-      border: 2px solid #2d2d44;
+      background: #232323;
+      border: 2px solid #3a3a3a;
       border-radius: 12px;
-      color: #e2e8f0;
+      color: #f1f1f1;
       font-size: 14px;
       line-height: 1.6;
       padding: 14px 16px;
@@ -553,22 +552,22 @@ export function mountQuizOverlay(
     }
 
     .lp-short-answer:focus {
-      border-color: #6366f1;
+      border-color: #f1f1f1;
     }
 
     .lp-short-answer-review {
-      background: #1a1a2e;
-      border: 1px solid #2d2d44;
+      background: #232323;
+      border: 1px solid #3a3a3a;
       border-radius: 10px;
       padding: 12px 16px;
       margin-bottom: 18px;
       font-size: 13px;
-      color: #94a3b8;
+      color: #b8b8b8;
       line-height: 1.55;
     }
 
     .lp-short-answer-label {
-      color: #818cf8;
+      color: #d0d0d0;
     }
 
     .lp-feedback {
@@ -579,15 +578,15 @@ export function mountQuizOverlay(
     }
 
     .lp-feedback--correct {
-      background: linear-gradient(135deg, #052e16 0%, #071d12 100%);
-      border-color: #22c55e;
-      box-shadow: 0 0 20px rgba(34, 197, 94, 0.13);
+      background: linear-gradient(135deg, #1e2a1f 0%, #1a231a 100%);
+      border-color: #4f8b57;
+      box-shadow: 0 0 20px rgba(79, 139, 87, 0.16);
     }
 
     .lp-feedback--wrong {
-      background: linear-gradient(135deg, #3f0f0f 0%, #2a0808 100%);
-      border-color: #ef4444;
-      box-shadow: 0 0 20px rgba(239, 68, 68, 0.13);
+      background: linear-gradient(135deg, #2f1f1f 0%, #271919 100%);
+      border-color: #b45a5a;
+      box-shadow: 0 0 20px rgba(180, 90, 90, 0.16);
     }
 
     .lp-feedback-title {
@@ -597,17 +596,17 @@ export function mountQuizOverlay(
     }
 
     .lp-feedback-title--correct {
-      color: #86efac;
+      color: #def2e1;
     }
 
     .lp-feedback-title--wrong {
-      color: #fca5a5;
+      color: #ffd8d8;
     }
 
     .lp-feedback-text {
       font-size: 13px;
       line-height: 1.7;
-      color: #94a3b8;
+      color: #c1c1c1;
       margin: 0;
     }
 
@@ -618,37 +617,41 @@ export function mountQuizOverlay(
     }
 
     .lp-btn {
-      border: none;
+      border: 1px solid transparent;
       border-radius: 12px;
       padding: 13px 30px;
       font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.3px;
       transition: all 0.2s ease;
-      color: #fff;
+      color: #111111;
     }
 
     .lp-btn--submit {
       cursor: pointer;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      background: linear-gradient(135deg, #f1f1f1 0%, #d8d8d8 100%);
+      border-color: #f1f1f1;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
     }
 
     .lp-btn--submit:disabled {
-      background: #2d2d44;
-      color: #4a4a6a;
+      background: #3a3a3a;
+      color: #8f8f8f;
+      border-color: #3a3a3a;
       cursor: not-allowed;
       box-shadow: none;
     }
 
     .lp-btn--continue {
       cursor: pointer;
-      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-      box-shadow: 0 4px 15px rgba(34, 197, 94, 0.35);
+      background: linear-gradient(135deg, #2d2d2d 0%, #252525 100%);
+      color: #f1f1f1;
+      border-color: #4a4a4a;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
     }
 
     .lp-btn--continue:hover {
-      transform: scale(1.03);
+      background: #353535;
     }
 
     .lp-btn-row {
@@ -666,17 +669,17 @@ export function mountQuizOverlay(
     }
 
     ::-webkit-scrollbar-track {
-      background: #0e0e1c;
+      background: #161616;
       border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #2d2d44;
+      background: #3d3d3d;
       border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #6366f1;
+      background: #5a5a5a;
     }
   `;
   shadow.appendChild(styleEl);
