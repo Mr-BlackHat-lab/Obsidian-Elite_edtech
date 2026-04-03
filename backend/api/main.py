@@ -7,6 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
+from api.routes.transcription import router as transcription_router
 
 
 @asynccontextmanager
@@ -41,11 +42,12 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(performance_router)
+app.include_router(transcription_router)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "service": "LearnPulse AI"}
 
 
 @app.get("/")
