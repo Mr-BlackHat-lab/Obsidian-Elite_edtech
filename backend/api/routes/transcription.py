@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from services.difficulty_engine import get_next_difficulty
-from services.question_generation import generate_questions
+from services.question_generation import generate_question_async, generate_questions
 from workers.celery_tasks import process_video_task
 
 router = APIRouter()
@@ -21,6 +21,7 @@ class TranscribeRequest(BaseModel):
 class GenerateQuestionsRequest(BaseModel):
     transcript_chunk: str
     session_id: str | None = None
+    difficulty: str | None = None
 
 
 @router.post("/transcribe")
@@ -70,13 +71,18 @@ async def transcribe(req: TranscribeRequest, request: Request) -> dict:
 async def generate_questions_endpoint(req: GenerateQuestionsRequest, request: Request) -> dict:
     db = request.app.state.db
 
-    difficulty = "medium"
+    difficulty = req.difficulty or "medium"
     if req.session_id:
         session = await db.sessions.find_one({"session_id": req.session_id})
         if session:
             difficulty = get_next_difficulty(float(session.get("score", 0.0)))
 
-    questions = await generate_questions(req.transcript_chunk)
+    # Session-aware path: generate a single question at adaptive difficulty.
+    if req.session_id:
+        questions = [await generate_question_async(req.transcript_chunk, difficulty=difficulty)]
+    else:
+        questions = await generate_questions(req.transcript_chunk)
+
     return {
         "session_id": req.session_id,
         "questions": questions,
