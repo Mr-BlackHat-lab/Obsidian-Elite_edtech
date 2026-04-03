@@ -295,7 +295,7 @@ function Popup() {
           height="24"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#6366f1"
+          stroke="#f1f1f1"
           strokeWidth="2.5"
           strokeLinecap="round"
           className="lp-popup-spinner"
