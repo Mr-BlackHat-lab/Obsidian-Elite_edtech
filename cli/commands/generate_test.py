@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
 import click
 import requests
 from rich.console import Console
@@ -66,11 +70,28 @@ def _submit_answer(session_id: str, question: dict, user_answer: str) -> dict:
         "user_answer": user_answer,
         "concept_tag": question.get("concept_tag", "General"),
     }
-    response = requests.post(f"{API_BASE}/submit-answer", json=payload, timeout=60)
+    try:
+        response = requests.post(f"{API_BASE}/submit-answer", json=payload, timeout=60)
 
-    if response.status_code == 404:
+        if response.status_code == 404:
+            expected = str(question.get("answer", "")).strip().upper()
+            correct = expected == user_answer.strip().upper()
+            return {
+                "correct": correct,
+                "explanation": question.get("explanation", "No explanation provided."),
+                "updated_score": 0.0,
+                "weak_topics": [],
+            }
+
+        response.raise_for_status()
+        return response.json()
+
+    except requests.RequestException:
         expected = str(question.get("answer", "")).strip().upper()
         correct = expected == user_answer.strip().upper()
+        console.print(
+            "[yellow]submit-answer unavailable. Using local grading fallback for demo stability.[/yellow]"
+        )
         return {
             "correct": correct,
             "explanation": question.get("explanation", "No explanation provided."),
@@ -78,8 +99,10 @@ def _submit_answer(session_id: str, question: dict, user_answer: str) -> dict:
             "weak_topics": [],
         }
 
-    response.raise_for_status()
-    return response.json()
+
+def _export_results(export_path: Path, payload: dict) -> None:
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _render_question(question: dict, index: int, total: int) -> None:
@@ -95,7 +118,13 @@ def _render_question(question: dict, index: int, total: int) -> None:
 
 @click.command("test")
 @click.option("--session-id", required=True, type=str, help="Session ID to run quiz for.")
-def test_command(session_id: str) -> None:
+@click.option(
+    "--export-path",
+    required=False,
+    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    help="Optional output path for JSON results. Defaults to {session_id}_results.json.",
+)
+def test_command(session_id: str, export_path: Path | None) -> None:
     """Run an interactive test for a session."""
     try:
         session = _fetch_session(session_id)
@@ -103,6 +132,9 @@ def test_command(session_id: str) -> None:
         if not questions:
             console.print("[yellow]No questions available for this session.[/yellow]")
             return
+
+        results: list[dict] = []
+        correct_count = 0
 
         for idx, question in enumerate(questions, start=1):
             _render_question(question, idx, len(questions))
@@ -112,15 +144,41 @@ def test_command(session_id: str) -> None:
             ).upper()
 
             feedback = _submit_answer(session_id, question, answer)
-            if feedback.get("correct"):
+            is_correct = bool(feedback.get("correct"))
+            if is_correct:
                 console.print("[green]Correct![/green]")
+                correct_count += 1
             else:
                 console.print("[red]Incorrect.[/red]")
 
             console.print(f"[cyan]Explanation:[/cyan] {feedback.get('explanation', 'No explanation provided.')}")
+
+            results.append(
+                {
+                    "question_id": question.get("question_id"),
+                    "question": question.get("question"),
+                    "difficulty": question.get("difficulty"),
+                    "concept_tag": question.get("concept_tag"),
+                    "user_answer": answer,
+                    "correct": is_correct,
+                    "explanation": feedback.get("explanation", "No explanation provided."),
+                }
+            )
+
             if idx < len(questions):
                 click.pause("Press ENTER for next question")
 
+        summary = {
+            "session_id": session_id,
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+            "total_questions": len(questions),
+            "correct_answers": correct_count,
+            "accuracy": round((correct_count / len(questions)) * 100, 2),
+        }
+        output_path = export_path or Path(f"{session_id}_results.json")
+        _export_results(output_path, {"summary": summary, "results": results})
+
+        console.print(f"[bold cyan]Results exported:[/bold cyan] {output_path}")
         console.print("[bold green]Quiz complete.[/bold green]")
 
     except requests.exceptions.ConnectionError:
@@ -128,5 +186,13 @@ def test_command(session_id: str) -> None:
             "[red]Could not connect to FastAPI at http://localhost:8000.[/red] "
             "Start backend services and try again."
         )
+    except requests.exceptions.Timeout:
+        console.print(
+            "[red]Request timed out while fetching quiz data.[/red] "
+            "Retry in a few seconds or switch to demo session."
+        )
     except requests.RequestException as exc:
-        console.print(f"[red]Request failed:[/red] {exc}")
+        console.print(
+            f"[red]Request failed:[/red] {exc}\n"
+            "[yellow]Tip:[/yellow] Use a seeded demo session if backend generation is still in progress."
+        )

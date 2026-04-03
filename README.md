@@ -169,12 +169,23 @@ Deliverable: live-session learning prompts.
 |-- python-ai-service/
 |-- cli/
 |-- extension/
+|-- docs/
+|   |-- CLI_BACKEND_FRONTEND_GUIDE.md
+|   `-- STAGE_DEMO_RUNBOOK.md
 |-- infra/
 |   `-- docker-compose.yml
 `-- README.md
 ```
 
 ## CLI Usage
+
+For complete backend/frontend CLI integration and secret handling, see:
+
+- `docs/CLI_BACKEND_FRONTEND_GUIDE.md`
+
+For presentation-ready validation commands, see:
+
+- `docs/STAGE_DEMO_RUNBOOK.md`
 
 Install the CLI dependencies first:
 
@@ -191,10 +202,25 @@ python main.py test --session-id demo-session
 python main.py progress --user-id cli_user
 ```
 
+Export quiz results to JSON:
+
+```bash
+python main.py test --session-id demo-session --export-path demo_results.json
+```
+
+Default export behavior:
+
+- If `--export-path` is not provided, the CLI writes `{session_id}_results.json` in the current directory.
+
+Redis video cache helper:
+
+- If `/transcribe` is not ready (404), `process` will read/write `vidcache:{video_url}` in Redis (24h TTL).
+- This keeps demo flows stable by reusing known session IDs.
+
 ### Demo Flow
 
 1. Run `process` to create or load a session.
-2. Run `test` to answer the generated questions.
+2. Run `test` to answer the generated questions and export a JSON report.
 3. Run `progress` to see your topic breakdown and feedback.
 
 ## MVP Definition

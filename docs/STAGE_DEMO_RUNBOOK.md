@@ -9,6 +9,7 @@ Use this file when presenting progress and running live checks.
 - Stage 3 (API routes): done
 - Stage 4 (CLI commands): done
 - Stage 5 (Redis live keys + TTL): done
+- Stage 6 (CLI polish, JSON export, cache helper): done
 
 ## 0) Start Services
 
@@ -155,6 +156,22 @@ python main.py test --session-id demo-session
 python main.py progress --user-id cli_user
 ```
 
+Export results JSON (Stage 6):
+
+```bash
+python main.py test --session-id demo-session --export-path demo_results.json
+```
+
+Default output if no flag is passed:
+
+- `demo-session_results.json`
+
+Verify export file:
+
+```bash
+type demo_results.json
+```
+
 ## 5) Stage 5 Redis Demo
 
 ```bash
@@ -172,6 +189,22 @@ Expected:
 - `PONG` from ping
 - positive TTL values close to 7200
 
+## 6) Stage 6 Redis Video Cache Demo
+
+The `process` command now uses `vidcache:{video_url}` when `/transcribe` returns 404.
+
+```bash
+docker exec learnpulse_redis redis-cli KEYS "vidcache:*"
+docker exec learnpulse_redis redis-cli GET "vidcache:https://www.youtube.com/watch?v=demo"
+docker exec learnpulse_redis redis-cli TTL "vidcache:https://www.youtube.com/watch?v=demo"
+```
+
+Expected:
+
+- key exists after running `process`
+- value is a session id (for example `demo-session`)
+- TTL near 86400 seconds
+
 ## Presentation Sequence (2-3 min)
 
 1. Show Docker services up.
@@ -179,4 +212,4 @@ Expected:
 3. Run one `/submit-answer` call.
 4. Run `python main.py test --session-id demo-session`.
 5. Run `python main.py progress --user-id cli_user`.
-6. Show Redis TTL checks for Stage 5 readiness.
+6. Show Redis TTL checks for Stage 5 and video cache checks for Stage 6.
