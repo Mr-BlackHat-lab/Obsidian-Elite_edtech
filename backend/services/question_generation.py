@@ -4,19 +4,21 @@ import json
 import os
 import re
 import uuid
+from urllib import error, request
 
-try:
-    import google.genai as genai
-except ImportError:  # pragma: no cover - depends on environment packages
-    genai = None
-
-
-LLM_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 FREE_TIER_MODE = os.getenv("FREE_TIER_MODE", "true").lower() in {"1", "true", "yes", "on"}
-MAX_TRANSCRIPT_CHARS = int(os.getenv("GEMINI_MAX_TRANSCRIPT_CHARS", "900" if FREE_TIER_MODE else "2000"))
-MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "700" if FREE_TIER_MODE else "1200"))
-GEN_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.2" if FREE_TIER_MODE else "0.7"))
-_gemini_client = None
+LLM_MODEL = os.getenv("OPENROUTER_MODEL", os.getenv("GEMINI_MODEL", "openai/gpt-4o-mini"))
+MAX_TRANSCRIPT_CHARS = int(
+    os.getenv("OPENROUTER_MAX_TRANSCRIPT_CHARS", os.getenv("GEMINI_MAX_TRANSCRIPT_CHARS", "900" if FREE_TIER_MODE else "2000"))
+)
+MAX_OUTPUT_TOKENS = int(
+    os.getenv("OPENROUTER_MAX_OUTPUT_TOKENS", os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "700" if FREE_TIER_MODE else "1200"))
+)
+GEN_TEMPERATURE = float(
+    os.getenv("OPENROUTER_TEMPERATURE", os.getenv("GEMINI_TEMPERATURE", "0.2" if FREE_TIER_MODE else "0.7"))
+)
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+REQUEST_TIMEOUT_SECONDS = int(os.getenv("OPENROUTER_TIMEOUT_SECONDS", os.getenv("GEMINI_TIMEOUT_SECONDS", "25")))
 
 QUESTION_PROMPT = """You are an educational assessment AI.
 Given the following transcript excerpt, generate exactly 5 questions:
@@ -28,12 +30,21 @@ Return ONLY valid JSON with top-level key `questions` mapped to an array.
 Each item must include:
 question_id, question, type, difficulty, options, answer, explanation, concept_tag
 
+Strict format rules:
+- type must always be "mcq"
+- options must always contain exactly 4 strings
+- answer must be one of: "A", "B", "C", "D"
+
 Transcript:
 {transcript_chunk}
 """
 
 SINGLE_QUESTION_PROMPT = """Generate exactly 1 {difficulty} educational question as JSON.
 Return object keys: question_id, question, type, difficulty, options, answer, explanation, concept_tag
+Strict format rules:
+- type must be "mcq"
+- options must contain exactly 4 strings
+- answer must be one of: "A", "B", "C", "D"
 Transcript:
 {transcript_chunk}
 """
@@ -43,21 +54,66 @@ def _trim_transcript(text: str) -> str:
     return text.strip()[:MAX_TRANSCRIPT_CHARS]
 
 
-def _get_gemini_model():
-    """Create a Gemini client lazily and return a model handle if API key exists."""
-    global _gemini_client
+def _get_openrouter_api_key() -> str:
+    return os.getenv("OPENROUTER_API_KEY", os.getenv("GEMINI_API_KEY", "")).strip()
 
-    if genai is None:
-        return None
 
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+def _call_openrouter(messages: list[dict], max_output_tokens: int) -> str:
+    api_key = _get_openrouter_api_key()
     if not api_key:
-        return None
+        return ""
 
-    if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=api_key)
+    endpoint = f"{OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
+    payload = {
+        "model": LLM_MODEL,
+        "messages": messages,
+        "temperature": GEN_TEMPERATURE,
+        "max_tokens": max_output_tokens,
+    }
 
-    return _gemini_client.models
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost"),
+        "X-Title": os.getenv("OPENROUTER_APP_NAME", "LearnPulse AI"),
+    }
+
+    req = request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+            body = resp.read().decode("utf-8")
+    except error.HTTPError as exc:
+        try:
+            details = exc.read().decode("utf-8")[:400]
+        except Exception:
+            details = ""
+        print(f"[LLM:OPENROUTER] HTTPError status={exc.code} details={details}")
+        return ""
+    except error.URLError as exc:
+        print(f"[LLM:OPENROUTER] URLError reason={exc.reason}")
+        return ""
+    except (TimeoutError, OSError) as exc:
+        print(f"[LLM:OPENROUTER] Request failed: {exc}")
+        return ""
+
+    parsed = _safe_json_loads(body)
+    if not isinstance(parsed, dict):
+        return ""
+
+    choices = parsed.get("choices", [])
+    if not isinstance(choices, list) or not choices:
+        return ""
+
+    first = choices[0] if isinstance(choices[0], dict) else {}
+    message = first.get("message", {}) if isinstance(first, dict) else {}
+    content = message.get("content", "") if isinstance(message, dict) else ""
+    return str(content)
 
 
 def _safe_json_loads(content: str) -> dict | list:
@@ -88,7 +144,7 @@ def _fallback_questions(transcript_chunk: str) -> list[dict]:
             "type": "mcq",
             "difficulty": "easy" if index < 2 else ("medium" if index < 4 else "hard"),
             "options": ["Option A", "Option B", "Option C", "Option D"],
-            "answer": "Option B",
+            "answer": "B",
             "explanation": "This fallback answer is used when AI generation is unavailable.",
             "concept_tag": "general",
         }
@@ -109,22 +165,40 @@ def _normalize_question(item: dict) -> dict | None:
     }
     if not required.issubset(set(item.keys())):
         return None
-    if item.get("type") not in {"mcq", "short_answer"}:
+    if str(item.get("type", "")).strip().lower() != "mcq":
         return None
-    if item.get("difficulty") not in {"easy", "medium", "hard"}:
+    difficulty = str(item.get("difficulty", "")).strip().lower()
+    if difficulty not in {"easy", "medium", "hard"}:
         return None
     options = item.get("options")
     if not isinstance(options, list):
+        return None
+
+    normalized_options = [str(opt).strip() for opt in options if str(opt).strip()]
+    if len(normalized_options) < 4:
+        return None
+
+    normalized_options = normalized_options[:4]
+
+    answer = str(item.get("answer", "")).strip()
+    answer_upper = answer.upper()
+    if answer_upper not in {"A", "B", "C", "D"}:
+        for idx, option in enumerate(normalized_options):
+            if answer.lower() == option.lower():
+                answer_upper = ["A", "B", "C", "D"][idx]
+                break
+
+    if answer_upper not in {"A", "B", "C", "D"}:
         return None
 
     # Normalize minimal fields to consistent types.
     return {
         "question_id": str(item.get("question_id") or str(uuid.uuid4())[:8]),
         "question": str(item.get("question", "")).strip(),
-        "type": str(item.get("type")),
-        "difficulty": str(item.get("difficulty")),
-        "options": [str(opt) for opt in options],
-        "answer": str(item.get("answer", "")).strip(),
+        "type": "mcq",
+        "difficulty": difficulty,
+        "options": normalized_options,
+        "answer": answer_upper,
         "explanation": str(item.get("explanation", "")).strip(),
         "concept_tag": str(item.get("concept_tag", "general")).strip().lower() or "general",
     }
@@ -132,24 +206,18 @@ def _normalize_question(item: dict) -> dict | None:
 
 async def generate_questions(transcript_chunk: str) -> list[dict]:
     """Generate 5 questions from a transcript chunk with safe fallback."""
-    model = _get_gemini_model()
-    if model is None:
+    if not _get_openrouter_api_key():
         return _fallback_questions(transcript_chunk)
 
     prompt = QUESTION_PROMPT.format(transcript_chunk=_trim_transcript(transcript_chunk))
+    messages = [
+        {"role": "system", "content": "You generate strict JSON outputs for quiz generation."},
+        {"role": "user", "content": prompt},
+    ]
 
     for attempt in range(2):
         try:
-            response = model.generate_content(
-                model=LLM_MODEL,
-                contents=prompt,
-                config=genai.types.GenerateContentConfig(
-                    temperature=GEN_TEMPERATURE,
-                    max_output_tokens=MAX_OUTPUT_TOKENS,
-                    response_mime_type="application/json",
-                ),
-            )
-            content = getattr(response, "text", "") or "{}"
+            content = _call_openrouter(messages, max_output_tokens=MAX_OUTPUT_TOKENS) or "{}"
             payload = _safe_json_loads(content)
 
             raw_items = payload
@@ -178,26 +246,20 @@ async def generate_questions(transcript_chunk: str) -> list[dict]:
 
 async def generate_question_async(transcript_chunk: str, difficulty: str = "medium") -> dict:
     """Generate one question for live WebSocket pipeline."""
-    model = _get_gemini_model()
-    if model is None:
+    if not _get_openrouter_api_key():
         return _fallback_questions(transcript_chunk)[0] | {"difficulty": difficulty}
 
     prompt = SINGLE_QUESTION_PROMPT.format(
         difficulty=difficulty,
         transcript_chunk=_trim_transcript(transcript_chunk),
     )
+    messages = [
+        {"role": "system", "content": "You generate strict JSON outputs for quiz generation."},
+        {"role": "user", "content": prompt},
+    ]
 
     try:
-        response = model.generate_content(
-            model=LLM_MODEL,
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                temperature=GEN_TEMPERATURE,
-                max_output_tokens=MAX_OUTPUT_TOKENS,
-                response_mime_type="application/json",
-            ),
-        )
-        content = getattr(response, "text", "") or "{}"
+        content = _call_openrouter(messages, max_output_tokens=MAX_OUTPUT_TOKENS) or "{}"
         parsed = _safe_json_loads(content)
         if not isinstance(parsed, dict):
             parsed = {}

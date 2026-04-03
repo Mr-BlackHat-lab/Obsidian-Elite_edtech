@@ -24,6 +24,21 @@ def _video_question_cache_key(video_url: str) -> str:
     return f"videoq:{video_url}"
 
 
+def _looks_like_fallback_questions(questions: list[dict]) -> bool:
+    if not questions:
+        return False
+    fallback_markers = {
+        "This fallback answer is used when AI generation is unavailable.",
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D",
+    }
+    first = questions[0] if isinstance(questions[0], dict) else {}
+    explanation = str(first.get("explanation", "")).strip()
+    return explanation in fallback_markers or str(first.get("concept_tag", "")).strip().lower() == "general"
+
+
 def _load_cached_questions(video_url: str) -> list[dict] | None:
     try:
         client = Redis.from_url(redis_url, decode_responses=True)
@@ -33,13 +48,25 @@ def _load_cached_questions(video_url: str) -> list[dict] | None:
             return None
         data = json.loads(raw)
         if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
+            questions = [item for item in data if isinstance(item, dict)]
+            return None if _looks_like_fallback_questions(questions) else questions
     except (RedisError, json.JSONDecodeError):
         return None
     return None
 
 
+def _is_fallback_session(session: dict | None) -> bool:
+    if not session:
+        return False
+    questions = session.get("questions", [])
+    if not isinstance(questions, list) or not questions:
+        return False
+    return _looks_like_fallback_questions([item for item in questions if isinstance(item, dict)])
+
+
 def _save_cached_questions(video_url: str, questions: list[dict]) -> None:
+    if _looks_like_fallback_questions(questions):
+        return
     try:
         client = Redis.from_url(redis_url, decode_responses=True)
         client.setex(_video_question_cache_key(video_url), video_question_cache_ttl, json.dumps(questions))
@@ -61,11 +88,19 @@ def _is_valid_question(item: dict) -> bool:
     }
     if not required.issubset(set(item.keys())):
         return False
-    if item.get("type") not in {"mcq", "short_answer"}:
+    if str(item.get("type", "")).strip().lower() != "mcq":
         return False
     if item.get("difficulty") not in {"easy", "medium", "hard"}:
         return False
-    if not isinstance(item.get("options"), list):
+    options = item.get("options")
+    if not isinstance(options, list):
+        return False
+    normalized_options = [str(opt).strip() for opt in options if str(opt).strip()]
+    if len(normalized_options) < 4:
+        return False
+
+    answer = str(item.get("answer", "")).strip().upper()
+    if answer not in {"A", "B", "C", "D"}:
         return False
     return True
 
@@ -138,7 +173,7 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             return
 
         cached = loop.run_until_complete(_load_cached_ready())
-        if cached:
+        if cached and not _is_fallback_session(cached):
             async def _persist_cached() -> None:
                 client = AsyncIOMotorClient(mongodb_url)
                 try:
