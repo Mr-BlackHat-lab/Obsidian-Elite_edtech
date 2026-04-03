@@ -1,31 +1,303 @@
 // ============================================================
 // LearnPulse AI — background.ts
-//
-// LINES 1–80:    OWNED BY T2 (audio capture + WebSocket client)
-//                ⚠️  DO NOT EDIT — coordinate with T2
-//
-// LINES 81+:     OWNED BY T3 (message relay + badge updates)
+// Background service worker:
+// 1) Live pipeline (best-effort tab audio capture + WebSocket)
+// 2) Quiz relay to active tab
+// 3) Extension badge state management
 // ============================================================
 
-// ── T2 SECTION PLACEHOLDER (lines 1–80) ──────────────────────
-// T2 will implement:
-//   - tabCapture API for audio stream
-//   - WebSocket client connecting to backend transcription socket
-//   - chrome.tabs.sendMessage({ type: "SHOW_QUIZ", question, session_id })
-//   when a live question arrives from the backend
-// ─────────────────────────────────────────────────────────────
+import type { ExtensionMessage, Question } from "../shared/types";
 
-// Pad to line 81 — T2 owns above this boundary
-// (In the real merged file, T2's code fills lines 1–80)
+const BACKEND_WS_URL = "ws://localhost:8000/ws/live-questions";
+const AUDIO_CHUNK_MS = 2_000;
+const RECONNECT_BASE_MS = 1_500;
+const RECONNECT_MAX_MS = 12_000;
 
-// ============================================================
-// T3 SECTION: Message Relay + Badge Management   (lines 81+)
-// ============================================================
+let liveSocket: WebSocket | null = null;
+let socketSessionId: string | null = null;
+let reconnectAttempt = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-import type { ExtensionMessage } from "../shared/types";
+let captureStream: MediaStream | null = null;
+let mediaRecorder: MediaRecorder | null = null;
+let captureSessionId: string | null = null;
+let captureAttemptedSessionId: string | null = null;
 
 function isExtensionEnabled(value: unknown): boolean {
   return typeof value === "boolean" ? value : true;
+}
+
+function isQuestion(value: unknown): value is Question {
+  if (!value || typeof value !== "object") return false;
+
+  const candidate = value as Partial<Question>;
+
+  return (
+    typeof candidate.question_id === "string" &&
+    typeof candidate.question === "string" &&
+    (candidate.type === "mcq" || candidate.type === "short_answer") &&
+    (candidate.difficulty === "easy" || candidate.difficulty === "medium" || candidate.difficulty === "hard") &&
+    Array.isArray(candidate.options) &&
+    typeof candidate.answer === "string" &&
+    typeof candidate.explanation === "string" &&
+    typeof candidate.concept_tag === "string"
+  );
+}
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function closeSocket(): void {
+  if (!liveSocket) return;
+
+  liveSocket.onopen = null;
+  liveSocket.onmessage = null;
+  liveSocket.onerror = null;
+  liveSocket.onclose = null;
+  liveSocket.close();
+  liveSocket = null;
+}
+
+function stopAudioCapture(): void {
+  if (mediaRecorder) {
+    if (mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    mediaRecorder.ondataavailable = null;
+    mediaRecorder.onerror = null;
+    mediaRecorder = null;
+  }
+
+  if (captureStream) {
+    captureStream.getTracks().forEach((track) => track.stop());
+    captureStream = null;
+  }
+
+  captureSessionId = null;
+}
+
+async function stopLivePipeline(): Promise<void> {
+  clearReconnectTimer();
+  closeSocket();
+  stopAudioCapture();
+  socketSessionId = null;
+  reconnectAttempt = 0;
+  captureAttemptedSessionId = null;
+}
+
+function arrayBufferToBase64(input: ArrayBuffer): string {
+  const bytes = new Uint8Array(input);
+  let binary = "";
+
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    const chunk = bytes.subarray(i, i + 0x8000);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+async function sendAudioChunk(blob: Blob, sessionId: string): Promise<void> {
+  if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return;
+
+  try {
+    const payload = {
+      type: "audio_chunk",
+      session_id: sessionId,
+      audio_base64: arrayBufferToBase64(await blob.arrayBuffer()),
+    };
+
+    liveSocket.send(JSON.stringify(payload));
+  } catch (err) {
+    console.warn("[LP BG] Failed to forward audio chunk:", err);
+  }
+}
+
+async function ensureAudioCapture(sessionId: string): Promise<void> {
+  if (captureSessionId === sessionId && mediaRecorder?.state === "recording") return;
+  if (captureAttemptedSessionId === sessionId) return;
+
+  captureAttemptedSessionId = sessionId;
+
+  if (!chrome.tabCapture?.capture) {
+    console.warn("[LP BG] tabCapture.capture unavailable in this runtime.");
+    return;
+  }
+
+  if (typeof MediaRecorder === "undefined") {
+    console.warn("[LP BG] MediaRecorder unavailable in service worker context.");
+    return;
+  }
+
+  chrome.tabCapture.capture(
+    { audio: true, video: false },
+    (stream: MediaStream | null) => {
+      const runtimeError = chrome.runtime.lastError;
+      if (runtimeError || !stream) {
+        console.warn("[LP BG] Audio capture not started:", runtimeError?.message);
+        return;
+      }
+
+      try {
+        stopAudioCapture();
+        captureStream = stream;
+        captureSessionId = sessionId;
+
+        const recorder = new MediaRecorder(stream, {
+          mimeType: "audio/webm;codecs=opus",
+        });
+
+        recorder.ondataavailable = (event: BlobEvent) => {
+          if (!event.data || event.data.size === 0) return;
+          void sendAudioChunk(event.data, sessionId);
+        };
+
+        recorder.onerror = (event) => {
+          console.warn("[LP BG] MediaRecorder error:", event);
+        };
+
+        recorder.start(AUDIO_CHUNK_MS);
+        mediaRecorder = recorder;
+
+        console.info("[LP BG] Audio capture started.");
+      } catch (err) {
+        console.warn("[LP BG] Failed to initialize audio recorder:", err);
+        stopAudioCapture();
+      }
+    }
+  );
+}
+
+function parseShowQuizMessage(rawData: unknown, fallbackSessionId: string): ExtensionMessage | null {
+  if (typeof rawData !== "string") return null;
+
+  try {
+    const payload = JSON.parse(rawData) as {
+      type?: string;
+      question?: unknown;
+      session_id?: unknown;
+      data?: { question?: unknown; session_id?: unknown };
+    };
+
+    const questionCandidate = payload.question ?? payload.data?.question;
+    const sessionCandidate =
+      typeof payload.session_id === "string"
+        ? payload.session_id
+        : typeof payload.data?.session_id === "string"
+          ? payload.data.session_id
+          : fallbackSessionId;
+
+    if (!isQuestion(questionCandidate)) return null;
+
+    return {
+      type: "SHOW_QUIZ",
+      question: questionCandidate,
+      session_id: sessionCandidate,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function scheduleReconnect(sessionId: string): void {
+  clearReconnectTimer();
+
+  const delay = Math.min(
+    RECONNECT_BASE_MS * Math.max(1, 2 ** reconnectAttempt),
+    RECONNECT_MAX_MS
+  );
+
+  reconnectAttempt += 1;
+
+  reconnectTimer = setTimeout(() => {
+    void connectWebSocket(sessionId);
+  }, delay);
+}
+
+async function connectWebSocket(sessionId: string): Promise<void> {
+  if (
+    liveSocket &&
+    (liveSocket.readyState === WebSocket.OPEN || liveSocket.readyState === WebSocket.CONNECTING) &&
+    socketSessionId === sessionId
+  ) {
+    return;
+  }
+
+  clearReconnectTimer();
+  closeSocket();
+  socketSessionId = sessionId;
+
+  const socket = new WebSocket(
+    `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}`
+  );
+  liveSocket = socket;
+
+  socket.onopen = () => {
+    reconnectAttempt = 0;
+
+    socket.send(
+      JSON.stringify({
+        type: "hello",
+        session_id: sessionId,
+        source: "extension-background",
+      })
+    );
+
+    console.info("[LP BG] Live socket connected.");
+  };
+
+  socket.onmessage = (event) => {
+    const relayMessage = parseShowQuizMessage(event.data, sessionId);
+    if (!relayMessage || relayMessage.type !== "SHOW_QUIZ") return;
+
+    console.info("[LP BG] Live quiz received. Relaying to active tab.");
+    void relayQuizToActiveTab(relayMessage);
+  };
+
+  socket.onerror = (event) => {
+    console.warn("[LP BG] Live socket error:", event);
+  };
+
+  socket.onclose = () => {
+    if (liveSocket === socket) {
+      liveSocket = null;
+      if (socketSessionId === sessionId) {
+        scheduleReconnect(sessionId);
+      }
+    }
+  };
+}
+
+async function syncLivePipeline(): Promise<void> {
+  const stored = await chrome.storage.local.get([
+    "extensionEnabled",
+    "sessionId",
+    "sessionScore",
+  ]);
+
+  const enabled = isExtensionEnabled(stored.extensionEnabled);
+  const sessionId = typeof stored.sessionId === "string" ? stored.sessionId : null;
+
+  if (!enabled || !sessionId) {
+    await stopLivePipeline();
+    if (!enabled) {
+      handleBadgeUpdate("IDLE");
+    }
+    return;
+  }
+
+  const scorePercent =
+    typeof stored.sessionScore === "number"
+      ? Math.round(stored.sessionScore * 100)
+      : undefined;
+
+  handleBadgeUpdate("ACTIVE", scorePercent);
+  await connectWebSocket(sessionId);
+  await ensureAudioCapture(sessionId);
 }
 
 /**
@@ -69,23 +341,31 @@ function handleBadgeUpdate(
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes.extensionEnabled) return;
+  if (areaName !== "local") return;
 
-  const enabled = isExtensionEnabled(changes.extensionEnabled.newValue);
-  if (!enabled) {
-    handleBadgeUpdate("IDLE");
+  if (changes.extensionEnabled) {
+    const enabled = isExtensionEnabled(changes.extensionEnabled.newValue);
+    if (!enabled) {
+      handleBadgeUpdate("IDLE");
+    }
+  }
+
+  if (changes.extensionEnabled || changes.sessionId) {
+    void syncLivePipeline();
     return;
   }
 
-  chrome.storage.local.get(["sessionId", "sessionScore"], (stored) => {
-    if (!stored.sessionId) return;
+  if (changes.sessionScore) {
+    chrome.storage.local.get(["sessionId", "sessionScore"], (stored) => {
+      if (!stored.sessionId) return;
 
-    const scorePercent = stored.sessionScore
-      ? Math.round((stored.sessionScore as number) * 100)
-      : undefined;
+      const scorePercent = stored.sessionScore
+        ? Math.round((stored.sessionScore as number) * 100)
+        : undefined;
 
-    handleBadgeUpdate("ACTIVE", scorePercent);
-  });
+      handleBadgeUpdate("ACTIVE", scorePercent);
+    });
+  }
 });
 
 /**
@@ -110,26 +390,26 @@ export async function relayQuizToActiveTab(
   }
 }
 
+chrome.runtime.onInstalled.addListener(() => {
+  void syncLivePipeline();
+});
+
+chrome.tabs.onActivated.addListener(() => {
+  void syncLivePipeline();
+});
+
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status !== "complete") return;
+  if (!tab.active) return;
+  void syncLivePipeline();
+});
+
 /**
  * On service worker startup, restore the badge if a session was already active.
  * (Service workers can be killed and restarted by Chrome at any time.)
  */
 chrome.runtime.onStartup.addListener(async () => {
-  const stored = await chrome.storage.local.get([
-    "sessionId",
-    "sessionScore",
-    "extensionEnabled",
-  ]);
-
-  if (!isExtensionEnabled(stored.extensionEnabled)) {
-    handleBadgeUpdate("IDLE");
-    return;
-  }
-
-  if (stored.sessionId) {
-    const scorePercent = stored.sessionScore
-      ? Math.round((stored.sessionScore as number) * 100)
-      : undefined;
-    handleBadgeUpdate("ACTIVE", scorePercent);
-  }
+  await syncLivePipeline();
 });
+
+void syncLivePipeline();
