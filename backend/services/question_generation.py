@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 
 import google.generativeai as genai
@@ -40,6 +41,24 @@ Transcript:
 
 def _trim_transcript(text: str) -> str:
     return text.strip()[:MAX_TRANSCRIPT_CHARS]
+
+
+def _safe_json_loads(content: str) -> dict | list:
+    """Parse JSON safely even when model wraps content in extra text/code fences."""
+    if not content:
+        return {}
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # Try extracting the first JSON object/array from mixed text output.
+        match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", content)
+        if not match:
+            return {}
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return {}
 
 
 def _fallback_questions(transcript_chunk: str) -> list[dict]:
@@ -113,7 +132,7 @@ async def generate_questions(transcript_chunk: str) -> list[dict]:
                 ),
             )
             content = getattr(response, "text", "") or "{}"
-            payload = json.loads(content)
+            payload = _safe_json_loads(content)
 
             raw_items = payload
             if isinstance(payload, dict):
@@ -149,23 +168,26 @@ async def generate_question_async(transcript_chunk: str, difficulty: str = "medi
         transcript_chunk=_trim_transcript(transcript_chunk),
     )
 
-    model = genai.GenerativeModel(model_name=LLM_MODEL)
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=GEN_TEMPERATURE,
-            max_output_tokens=MAX_OUTPUT_TOKENS,
-            response_mime_type="application/json",
-        ),
-    )
-    content = getattr(response, "text", "") or "{}"
-    parsed = json.loads(content)
-    if not isinstance(parsed, dict):
-        parsed = {}
+    try:
+        model = genai.GenerativeModel(model_name=LLM_MODEL)
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=GEN_TEMPERATURE,
+                max_output_tokens=MAX_OUTPUT_TOKENS,
+                response_mime_type="application/json",
+            ),
+        )
+        content = getattr(response, "text", "") or "{}"
+        parsed = _safe_json_loads(content)
+        if not isinstance(parsed, dict):
+            parsed = {}
 
-    normalized = _normalize_question(parsed)
-    if normalized:
-        normalized["difficulty"] = difficulty
-        return normalized
+        normalized = _normalize_question(parsed)
+        if normalized:
+            normalized["difficulty"] = difficulty
+            return normalized
+    except Exception:
+        pass
 
     return _fallback_questions(transcript_chunk)[0] | {"difficulty": difficulty}
