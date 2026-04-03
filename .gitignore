@@ -1,0 +1,34 @@
+# OS / filesystem
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node / package managers
+node_modules/
+
+# Build and coverage outputs
+dist/
+build/
+coverage/
+*.tsbuildinfo
