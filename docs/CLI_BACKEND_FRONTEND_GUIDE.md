@@ -63,13 +63,13 @@ python main.py test --session-id demo-session --export-path demo_results.json
 If `--export-path` is omitted, output is:
 
 ```text
-{session_id}_results.json
+cli/results/{session_id}_results.json
 ```
 
 Example:
 
 ```text
-demo-session_results.json
+cli/results/demo-session_results.json
 ```
 
 ## 5. Backend integration contract
@@ -111,6 +111,11 @@ python main.py progress --user-id cli_user
 
 This gives a stable demo flow even when upstream AI endpoints are under development.
 
+Pre-generated demo question bank:
+
+- Fallback demo questions are loaded from `cli/demo_questions.json`.
+- Edit this file to customize the exact questions/options used in demo fallback mode.
+
 ## 8. Secrets and environment variables
 
 Use `.env` locally and do not commit it.
@@ -121,11 +126,15 @@ Use `.env` locally and do not commit it.
 Required variables:
 
 ```env
-GEMINI_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=openai/gpt-4o-mini
 MONGODB_URL=mongodb://mongo:27017/learnpulse
 REDIS_URL=redis://redis:6379/0
 YOUTUBE_API_KEY=
 WHISPER_MODEL=base
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_SITE_URL=http://localhost
+OPENROUTER_APP_NAME=LearnPulse AI
 APP_ENV=development
 DEBUG=true
 BACKEND_URL=http://localhost:8000

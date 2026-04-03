@@ -1,0 +1,21 @@
+{
+  "summary": {
+    "session_id": "c1f4701e-09a",
+    "user_id": "anonymous",
+    "submitted_at": "2026-04-03T19:53:22.271783+00:00",
+    "total_questions": 1,
+    "correct_answers": 0,
+    "accuracy": 0.0
+  },
+  "results": [
+    {
+      "question_id": "q_1",
+      "question": "What best describes so you know figma but you want to know how to design a website app game or any o?",
+      "difficulty": "easy",
+      "concept_tag": "1800",
+      "user_answer": "D",
+      "correct": false,
+      "explanation": "This fallback answer is used when AI generation is unavailable."
+    }
+  ]
+}
