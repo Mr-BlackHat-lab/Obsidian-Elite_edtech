@@ -1,0 +1,38 @@
+{
+  "summary": {
+    "session_id": "demo-session",
+    "submitted_at": "2026-04-03T09:40:37.094394+00:00",
+    "total_questions": 3,
+    "correct_answers": 2,
+    "accuracy": 66.67
+  },
+  "results": [
+    {
+      "question_id": "q1",
+      "question": "What is the purpose of a Docker volume?",
+      "difficulty": "medium",
+      "concept_tag": "Docker fundamentals",
+      "user_answer": "B",
+      "correct": true,
+      "explanation": "Volumes persist data independently from container lifecycle."
+    },
+    {
+      "question_id": "q2",
+      "question": "What does Kubernetes orchestrate?",
+      "difficulty": "easy",
+      "concept_tag": "Kubernetes basics",
+      "user_answer": "B",
+      "correct": true,
+      "explanation": "Kubernetes orchestrates containerized workloads and services."
+    },
+    {
+      "question_id": "q3",
+      "question": "Which Docker feature persists data beyond container life?",
+      "difficulty": "easy",
+      "concept_tag": "Docker fundamentals",
+      "user_answer": "A",
+      "correct": false,
+      "explanation": "Volumes are used to persist and share data outside the container lifecycle."
+    }
+  ]
+}
