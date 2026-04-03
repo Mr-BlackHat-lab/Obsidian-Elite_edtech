@@ -207,7 +207,7 @@ function parseShowQuizMessage(
   }
 }
 
-function scheduleReconnect(sessionId: string): void {
+function scheduleReconnect(sessionId: string, videoUrl: string): void {
   clearReconnectTimer();
 
   const delay = Math.min(
@@ -218,11 +218,11 @@ function scheduleReconnect(sessionId: string): void {
   reconnectAttempt += 1;
 
   reconnectTimer = setTimeout(() => {
-    void connectWebSocket(sessionId);
+    void connectWebSocket(sessionId, videoUrl);
   }, delay);
 }
 
-async function connectWebSocket(sessionId: string): Promise<void> {
+async function connectWebSocket(sessionId: string, videoUrl: string = ""): Promise<void> {
   if (
     liveSocket &&
     (liveSocket.readyState === WebSocket.OPEN ||
@@ -236,9 +236,8 @@ async function connectWebSocket(sessionId: string): Promise<void> {
   closeSocket();
   socketSessionId = sessionId;
 
-  const socket = new WebSocket(
-    `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}`,
-  );
+  const wsUrl = `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}&user_id=${encodeURIComponent("anonymous")}${videoUrl ? `&video_url=${encodeURIComponent(videoUrl)}` : ""}`;
+  const socket = new WebSocket(wsUrl);
   liveSocket = socket;
 
   socket.onopen = () => {
@@ -257,10 +256,19 @@ async function connectWebSocket(sessionId: string): Promise<void> {
 
   socket.onmessage = (event) => {
     const relayMessage = parseShowQuizMessage(event.data, sessionId);
-    if (!relayMessage || relayMessage.type !== "SHOW_QUIZ") return;
+    if (relayMessage && relayMessage.type === "SHOW_QUIZ") {
+      console.info("[LP BG] Live quiz received. Relaying to active tab.");
+      void relayQuizToActiveTab(relayMessage);
+      return;
+    }
 
-    console.info("[LP BG] Live quiz received. Relaying to active tab.");
-    void relayQuizToActiveTab(relayMessage);
+    // Handle server-sent error frames
+    try {
+      const payload = JSON.parse(event.data as string) as { type?: string; message?: string };
+      if (payload.type === "ERROR") {
+        console.error("[LP BG] Server error:", payload.message);
+      }
+    } catch { /* not JSON */ }
   };
 
   socket.onerror = (event) => {
@@ -272,7 +280,7 @@ async function connectWebSocket(sessionId: string): Promise<void> {
     if (liveSocket === socket) {
       liveSocket = null;
       if (socketSessionId === sessionId) {
-        scheduleReconnect(sessionId);
+        scheduleReconnect(sessionId, videoUrl);
       }
     }
   };
@@ -283,11 +291,14 @@ async function syncLivePipeline(): Promise<void> {
     "extensionEnabled",
     "sessionId",
     "sessionScore",
+    "sessionVideoUrl",
   ]);
 
   const enabled = isExtensionEnabled(stored.extensionEnabled);
   const sessionId =
     typeof stored.sessionId === "string" ? stored.sessionId : null;
+  const videoUrl =
+    typeof stored.sessionVideoUrl === "string" ? stored.sessionVideoUrl : "";
 
   if (!enabled || !sessionId) {
     await stopLivePipeline();
@@ -303,7 +314,7 @@ async function syncLivePipeline(): Promise<void> {
       : undefined;
 
   handleBadgeUpdate("ACTIVE", scorePercent);
-  await connectWebSocket(sessionId);
+  await connectWebSocket(sessionId, videoUrl);
   await ensureAudioCapture(sessionId);
 }
 

@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,18 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
+
+
+async def _warmup_whisper() -> None:
+    """Load the Whisper model in a background thread at startup so the first
+    live audio chunk is not delayed by model initialisation (~5-15 s)."""
+    try:
+        from services.transcription import get_whisper_model
+        await asyncio.to_thread(get_whisper_model)
+        print("[startup] Whisper model loaded.")
+    except Exception as exc:
+        # Non-fatal — live transcription will still work, just slower on first chunk
+        print(f"[startup] Whisper warm-up skipped: {exc}")
 
 
 @asynccontextmanager
@@ -24,6 +37,9 @@ async def lifespan(app: FastAPI):
     await app.state.db.sessions.create_index("video_url")
     await app.state.db.users.create_index("user_id", unique=True)
     await app.state.db.users.create_index("username", unique=True)
+
+    # Warm up Whisper in background — don’t block startup if it fails
+    asyncio.create_task(_warmup_whisper())
 
     yield
 
