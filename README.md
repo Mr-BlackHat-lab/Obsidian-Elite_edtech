@@ -174,6 +174,29 @@ Deliverable: live-session learning prompts.
 `-- README.md
 ```
 
+## CLI Usage
+
+Install the CLI dependencies first:
+
+```bash
+cd cli
+python -m pip install -r requirements.txt
+```
+
+Run the commands from inside the `cli/` folder:
+
+```bash
+python main.py process --url "https://www.youtube.com/watch?v=demo"
+python main.py test --session-id demo-session
+python main.py progress --user-id cli_user
+```
+
+### Demo Flow
+
+1. Run `process` to create or load a session.
+2. Run `test` to answer the generated questions.
+3. Run `progress` to see your topic breakdown and feedback.
+
 ## MVP Definition
 
 MVP is complete when the CLI can:
