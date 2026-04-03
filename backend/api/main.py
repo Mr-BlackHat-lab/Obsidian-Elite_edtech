@@ -4,10 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from starlette.middleware.sessions import SessionMiddleware
 
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
+from api.routes.users import router as users_router
 
 
 @asynccontextmanager
@@ -24,6 +26,7 @@ async def lifespan(app: FastAPI):
     await app.state.db.sessions.create_index("video_url")
     await app.state.db.users.create_index("user_id", unique=True)
     await app.state.db.users.create_index("username", unique=True)
+    await app.state.db.users.create_index("email", sparse=True)
 
     yield
 
@@ -33,6 +36,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="LearnPulse AI", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET", "changeme"),
+)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
@@ -41,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(performance_router)
 app.include_router(transcription_router)
 
