@@ -27,7 +27,7 @@ This version intentionally removes Svelte and keeps the system practical, scalab
 - spaCy (keyword/entity extraction, NLP basics)
 - sentence-transformers + FAISS (semantic grouping and retrieval)
 - LLM provider:
-  - OpenAI API, or
+  - Google Gemini API, or
   - Local models via Ollama (LLaMA, Mistral)
 
 ### Backend
