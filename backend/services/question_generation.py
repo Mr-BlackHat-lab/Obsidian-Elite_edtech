@@ -6,7 +6,7 @@ import re
 import uuid
 
 try:
-    import google.generativeai as genai
+    import google.genai as genai
 except ImportError:  # pragma: no cover - depends on environment packages
     genai = None
 
@@ -16,7 +16,7 @@ FREE_TIER_MODE = os.getenv("FREE_TIER_MODE", "true").lower() in {"1", "true", "y
 MAX_TRANSCRIPT_CHARS = int(os.getenv("GEMINI_MAX_TRANSCRIPT_CHARS", "900" if FREE_TIER_MODE else "2000"))
 MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "700" if FREE_TIER_MODE else "1200"))
 GEN_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.2" if FREE_TIER_MODE else "0.7"))
-_gemini_configured = False
+_gemini_client = None
 
 QUESTION_PROMPT = """You are an educational assessment AI.
 Given the following transcript excerpt, generate exactly 5 questions:
@@ -44,8 +44,8 @@ def _trim_transcript(text: str) -> str:
 
 
 def _get_gemini_model():
-    """Configure Gemini lazily and return a model instance if API key exists."""
-    global _gemini_configured
+    """Create a Gemini client lazily and return a model handle if API key exists."""
+    global _gemini_client
 
     if genai is None:
         return None
@@ -54,11 +54,10 @@ def _get_gemini_model():
     if not api_key:
         return None
 
-    if not _gemini_configured:
-        genai.configure(api_key=api_key)
-        _gemini_configured = True
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=api_key)
 
-    return genai.GenerativeModel(model_name=LLM_MODEL)
+    return _gemini_client.models
 
 
 def _safe_json_loads(content: str) -> dict | list:
@@ -142,8 +141,9 @@ async def generate_questions(transcript_chunk: str) -> list[dict]:
     for attempt in range(2):
         try:
             response = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+                model=LLM_MODEL,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
                     temperature=GEN_TEMPERATURE,
                     max_output_tokens=MAX_OUTPUT_TOKENS,
                     response_mime_type="application/json",
@@ -189,8 +189,9 @@ async def generate_question_async(transcript_chunk: str, difficulty: str = "medi
 
     try:
         response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
+            model=LLM_MODEL,
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
                 temperature=GEN_TEMPERATURE,
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 response_mime_type="application/json",
