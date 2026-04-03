@@ -13,6 +13,17 @@ services:
       redis:
         condition: service_healthy
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: on-failure
 
   celery:
@@ -23,8 +34,10 @@ services:
     volumes:
       - ./backend:/app
     depends_on:
-      - redis
-      - mongo
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
     restart: on-failure
 
   mongo:
