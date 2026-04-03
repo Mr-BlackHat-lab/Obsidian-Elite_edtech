@@ -5,18 +5,18 @@ import os
 import re
 import uuid
 
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ImportError:  # pragma: no cover - depends on environment packages
+    genai = None
 
-
-gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
 
 LLM_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 FREE_TIER_MODE = os.getenv("FREE_TIER_MODE", "true").lower() in {"1", "true", "yes", "on"}
 MAX_TRANSCRIPT_CHARS = int(os.getenv("GEMINI_MAX_TRANSCRIPT_CHARS", "900" if FREE_TIER_MODE else "2000"))
 MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "700" if FREE_TIER_MODE else "1200"))
 GEN_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.2" if FREE_TIER_MODE else "0.7"))
+_gemini_configured = False
 
 QUESTION_PROMPT = """You are an educational assessment AI.
 Given the following transcript excerpt, generate exactly 5 questions:
@@ -41,6 +41,24 @@ Transcript:
 
 def _trim_transcript(text: str) -> str:
     return text.strip()[:MAX_TRANSCRIPT_CHARS]
+
+
+def _get_gemini_model():
+    """Configure Gemini lazily and return a model instance if API key exists."""
+    global _gemini_configured
+
+    if genai is None:
+        return None
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+
+    if not _gemini_configured:
+        genai.configure(api_key=api_key)
+        _gemini_configured = True
+
+    return genai.GenerativeModel(model_name=LLM_MODEL)
 
 
 def _safe_json_loads(content: str) -> dict | list:
@@ -115,14 +133,14 @@ def _normalize_question(item: dict) -> dict | None:
 
 async def generate_questions(transcript_chunk: str) -> list[dict]:
     """Generate 5 questions from a transcript chunk with safe fallback."""
-    if not gemini_api_key:
+    model = _get_gemini_model()
+    if model is None:
         return _fallback_questions(transcript_chunk)
 
     prompt = QUESTION_PROMPT.format(transcript_chunk=_trim_transcript(transcript_chunk))
 
     for attempt in range(2):
         try:
-            model = genai.GenerativeModel(model_name=LLM_MODEL)
             response = model.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
@@ -160,7 +178,8 @@ async def generate_questions(transcript_chunk: str) -> list[dict]:
 
 async def generate_question_async(transcript_chunk: str, difficulty: str = "medium") -> dict:
     """Generate one question for live WebSocket pipeline."""
-    if not gemini_api_key:
+    model = _get_gemini_model()
+    if model is None:
         return _fallback_questions(transcript_chunk)[0] | {"difficulty": difficulty}
 
     prompt = SINGLE_QUESTION_PROMPT.format(
@@ -169,7 +188,6 @@ async def generate_question_async(transcript_chunk: str, difficulty: str = "medi
     )
 
     try:
-        model = genai.GenerativeModel(model_name=LLM_MODEL)
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
