@@ -123,7 +123,7 @@ print("\n5. WebSocket live pipeline (Whisper check)")
 try:
     import websocket  # pip install websocket-client
 
-    ws_result = {"connected": False, "error_frame": None, "pong": False}
+    ws_result = {"connected": False, "error_frame": None, "error_code": "", "pong": False}
 
     def on_open(ws):
         ws_result["connected"] = True
@@ -135,7 +135,8 @@ try:
             if data.get("type") == "pong":
                 ws_result["pong"] = True
             if data.get("type") == "ERROR":
-                ws_result["error_frame"] = data.get("message", "unknown error")
+                ws_result["error_frame"] = data
+                ws_result["error_code"] = str(data.get("code", ""))
         except Exception:
             pass
         ws.close()
@@ -153,10 +154,10 @@ try:
 
     check("WebSocket connected", ws_result["connected"])
 
-    if ws_result["error_frame"] and "WHISPER_UNAVAILABLE" in str(ws_result.get("error_frame", "")):
-        check("Whisper available", False, ws_result["error_frame"])
+    if ws_result["error_code"] == "WHISPER_UNAVAILABLE":
+        check("Whisper available", False, str(ws_result["error_frame"]))
     elif ws_result["error_frame"]:
-        check("No unexpected WS error", False, ws_result["error_frame"])
+        check("No unexpected WS error", False, str(ws_result["error_frame"]))
     else:
         check("Whisper available (no ERROR frame)", True)
         check("WebSocket ping/pong works", ws_result["pong"])

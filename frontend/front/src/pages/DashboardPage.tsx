@@ -81,7 +81,7 @@ export default function DashboardPage() {
     })) || [];
   }, [perfData]);
 
-  const latestRecord = perfData?.history[perfData.history.length - 1];
+  const latestRecord = perfData && perfData.history.length ? perfData.history[perfData.history.length - 1] : undefined;
 
   const accuracyData = useMemo(() => {
     if (!latestRecord) return [];

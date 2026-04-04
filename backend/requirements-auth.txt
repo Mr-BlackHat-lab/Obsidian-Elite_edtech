@@ -1,0 +1,4 @@
+passlib[bcrypt]
+python-jose[cryptography]
+authlib
+starlette
