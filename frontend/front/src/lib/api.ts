@@ -54,8 +54,14 @@ interface BackendPerformanceResponse {
 }
 
 function extractUserIdFromToken(token: string): string | null {
-  if (token.startsWith("access:")) return token.slice("access:".length) || null;
-  if (token.startsWith("refresh:")) return token.slice("refresh:".length) || null;
+  if (token.startsWith("access:")) {
+    const userId = token.slice("access:".length);
+    return userId ? userId : null;
+  }
+  if (token.startsWith("refresh:")) {
+    const userId = token.slice("refresh:".length);
+    return userId ? userId : null;
+  }
   return null;
 }
 
@@ -162,7 +168,7 @@ export async function signup(payload: SignupPayload): Promise<{
 }
 
 export async function login(payload: LoginPayload): Promise<{ user: AuthUser; tokens: AuthTokens }> {
-  const username = payload.email.split("@")[0] || payload.email;
+  const username = payload.email.includes("@") ? payload.email.split("@")[0] : payload.email;
   const result = await request<BackendUserResponse>("/register", {
     method: "POST",
     body: JSON.stringify({ username, email: payload.email }),
@@ -184,11 +190,10 @@ export async function verifyEmail(token: string): Promise<{ user: AuthUser }> {
   };
 }
 
-export async function resendVerification(email: string): Promise<{
+export async function resendVerification(_email: string): Promise<{
   message: string;
   verification?: { expiresAt: string; previewUrl?: string };
 }> {
-  void email;
   return {
     message: "Verification flow is not enabled on the backend. You can proceed to login in local mode.",
     verification: {

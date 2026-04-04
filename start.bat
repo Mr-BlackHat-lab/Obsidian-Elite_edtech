@@ -19,6 +19,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [2/3] Waiting for backend to be healthy...
+REM Timeout after ~120s (40 attempts x 3s)
 set /a MAX_ATTEMPTS=40
 set /a ATTEMPT=0
 :wait_loop
