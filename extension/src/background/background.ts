@@ -222,7 +222,7 @@ function scheduleReconnect(sessionId: string, videoUrl: string): void {
   }, delay);
 }
 
-async function connectWebSocket(sessionId: string, videoUrl: string = ""): Promise<void> {
+async function connectWebSocket(sessionId: string, videoUrl: string = "", userId: string = "anonymous"): Promise<void> {
   if (
     liveSocket &&
     (liveSocket.readyState === WebSocket.OPEN ||
@@ -236,7 +236,7 @@ async function connectWebSocket(sessionId: string, videoUrl: string = ""): Promi
   closeSocket();
   socketSessionId = sessionId;
 
-  const wsUrl = `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}&user_id=${encodeURIComponent("anonymous")}${videoUrl ? `&video_url=${encodeURIComponent(videoUrl)}` : ""}`;
+  const wsUrl = `${BACKEND_WS_URL}?session_id=${encodeURIComponent(sessionId)}&user_id=${encodeURIComponent(userId)}${videoUrl ? `&video_url=${encodeURIComponent(videoUrl)}` : ""}`;
   const socket = new WebSocket(wsUrl);
   liveSocket = socket;
 
@@ -292,6 +292,7 @@ async function syncLivePipeline(): Promise<void> {
     "sessionId",
     "sessionScore",
     "sessionVideoUrl",
+    "deviceUserId",
   ]);
 
   const enabled = isExtensionEnabled(stored.extensionEnabled);
@@ -299,6 +300,10 @@ async function syncLivePipeline(): Promise<void> {
     typeof stored.sessionId === "string" ? stored.sessionId : null;
   const videoUrl =
     typeof stored.sessionVideoUrl === "string" ? stored.sessionVideoUrl : "";
+  const userId =
+    typeof stored.deviceUserId === "string" && stored.deviceUserId
+      ? stored.deviceUserId
+      : "anonymous";
 
   if (!enabled || !sessionId) {
     await stopLivePipeline();
@@ -314,7 +319,7 @@ async function syncLivePipeline(): Promise<void> {
       : undefined;
 
   handleBadgeUpdate("ACTIVE", scorePercent);
-  await connectWebSocket(sessionId, videoUrl);
+  await connectWebSocket(sessionId, videoUrl, userId);
   await ensureAudioCapture(sessionId);
 }
 
