@@ -15,7 +15,10 @@ faiss-cpu
 python-dotenv>=1.0.1
 pydantic>=2.7.0
 python-multipart
-<<<<<<< HEAD
 httpx>=0.27.0
-=======
->>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
+authlib>=1.3.0
+httpx>=0.27.0
+itsdangerous>=2.1.0
+

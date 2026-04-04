@@ -1,19 +1,23 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from starlette.middleware.sessions import SessionMiddleware
+
+# Load .env from backend/ folder explicitly
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
-<<<<<<< HEAD
 from api.routes.free_generation import router as free_generation_router
 from services.in_memory_storage import get_in_memory_db
-=======
->>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
+from api.routes.users import router as users_router
 
 
 async def _warmup_whisper() -> None:
@@ -45,33 +49,8 @@ async def _warmup_whisper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-<<<<<<< HEAD
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
-    
-    try:
-        client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
-        db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
-        app.state.mongo_client = client
-        app.state.db = client[db_name]
-
-        # Test connection
-        await client.admin.command('ping')
-        print(f"[startup] MongoDB connected: {mongodb_url}")
-        
-        # Create key indexes once to keep session/user lookups fast.
-        await app.state.db.sessions.create_index("session_id", unique=True)
-        await app.state.db.sessions.create_index("user_id")
-        await app.state.db.sessions.create_index("video_url")
-        await app.state.db.users.create_index("user_id", unique=True)
-        await app.state.db.users.create_index("username", unique=True)
-        print("[startup] MongoDB indexes created")
-    except Exception as e:
-        print(f"[startup] MongoDB connection failed: {e}")
-        print("[startup] Running without MongoDB - using in-memory storage")
-        app.state.mongo_client = None
-        app.state.db = get_in_memory_db()
-=======
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/learnpulse")
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
     client = AsyncIOMotorClient(mongodb_url)
     db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
     app.state.mongo_client = client
@@ -83,19 +62,14 @@ async def lifespan(app: FastAPI):
     await app.state.db.sessions.create_index("video_url")
     await app.state.db.users.create_index("user_id", unique=True)
     await app.state.db.users.create_index("username", unique=True)
->>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
+    await app.state.db.users.create_index("email", sparse=True)
 
     # Warm up Whisper in background — don’t block startup if it fails
     asyncio.create_task(_warmup_whisper())
 
     yield
 
-<<<<<<< HEAD
-    if app.state.mongo_client:
-        app.state.mongo_client.close()
-=======
     client.close()
->>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
 
 
 app = FastAPI(title="LearnPulse AI", version="1.0.0", lifespan=lifespan)
@@ -107,6 +81,10 @@ allowed_origins = [
 ]
 
 app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET", "changeme"),
+)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
@@ -115,12 +93,9 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(performance_router)
 app.include_router(transcription_router)
-<<<<<<< HEAD
-app.include_router(free_generation_router)
-=======
->>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
 
 
 @app.get("/health")
