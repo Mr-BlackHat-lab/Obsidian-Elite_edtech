@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import tempfile
 from functools import lru_cache
 from urllib.parse import parse_qs, urlparse
@@ -148,6 +149,37 @@ async def transcribe_chunk_async(audio_bytes: bytes) -> str:
             os.unlink(tmp_path)
         except OSError:
             pass
+
+
+async def _transcribe_youtube_via_whisper(video_url: str) -> str:
+    """Download YouTube audio with yt-dlp and transcribe it with local Whisper."""
+
+    def _download_audio() -> tuple[str, str]:
+        import yt_dlp
+
+        temp_dir = tempfile.mkdtemp(prefix="lp_ytdlp_")
+        outtmpl = os.path.join(temp_dir, "%(id)s.%(ext)s")
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": outtmpl,
+            "noplaylist": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+            file_path = ydl.prepare_filename(info)
+        return file_path, temp_dir
+
+    file_path = ""
+    temp_dir = ""
+    try:
+        file_path, temp_dir = await asyncio.to_thread(_download_audio)
+        transcript = await transcribe_audio_file(file_path)
+        return transcript.strip()
+    finally:
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def chunk_transcript(transcript: str, chunk_size: int = 500) -> list[str]:

@@ -3,6 +3,8 @@ import asyncio
 import sys
 import json
 from pathlib import Path
+from urllib.parse import quote_plus
+from urllib.request import Request, urlopen
 
 from celery import Celery
 from celery.exceptions import MaxRetriesExceededError
@@ -24,6 +26,117 @@ def _video_question_cache_key(video_url: str) -> str:
     return f"videoq:{video_url}"
 
 
+def _looks_like_fallback_questions(questions: list[dict]) -> bool:
+    if not questions:
+        return False
+    fallback_markers = {
+        "This fallback answer is used when AI generation is unavailable.",
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D",
+    }
+    first = questions[0] if isinstance(questions[0], dict) else {}
+    explanation = str(first.get("explanation", "")).strip()
+    return explanation in fallback_markers or str(first.get("concept_tag", "")).strip().lower() == "general"
+
+
+def _demo_questions(video_url: str) -> list[dict]:
+    video_label = video_url.split("watch?v=")[-1] if "watch?v=" in video_url else video_url.rsplit("/", 1)[-1]
+    video_label = video_label[:40] or "the video"
+    return [
+        {
+            "question_id": "demo_q1",
+            "question": f"What is the main purpose of Docker volumes in {video_label}?",
+            "type": "mcq",
+            "difficulty": "easy",
+            "options": [
+                "To persist data beyond the container lifecycle",
+                "To replace the Docker image",
+                "To slow down the container",
+                "To stop all networking",
+            ],
+            "answer": "A",
+            "explanation": "Docker volumes are used to persist and share data outside the container lifecycle.",
+            "concept_tag": "docker fundamentals",
+        },
+        {
+            "question_id": "demo_q2",
+            "question": "What does Kubernetes primarily orchestrate?",
+            "type": "mcq",
+            "difficulty": "easy",
+            "options": [
+                "Pods and services",
+                "Only static web pages",
+                "Local text files",
+                "Single Python functions",
+            ],
+            "answer": "A",
+            "explanation": "Kubernetes orchestrates containerized workloads such as pods and services.",
+            "concept_tag": "kubernetes basics",
+        },
+        {
+            "question_id": "demo_q3",
+            "question": "Which option best describes a container image?",
+            "type": "mcq",
+            "difficulty": "medium",
+            "options": [
+                "A runnable package with app and dependencies",
+                "A cloud backup service",
+                "A network cable",
+                "A user profile",
+            ],
+            "answer": "A",
+            "explanation": "A container image packages the application and dependencies needed to run it.",
+            "concept_tag": "containers",
+        },
+    ]
+
+
+def _metadata_transcript(video_url: str) -> str:
+    """Build a lightweight transcript proxy from public YouTube metadata."""
+    try:
+        oembed_url = (
+            "https://www.youtube.com/oembed"
+            f"?url={quote_plus(video_url)}&format=json"
+        )
+        req = Request(oembed_url, headers={"User-Agent": "LearnPulse/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return ""
+
+    title = str(payload.get("title", "")).strip()
+    author = str(payload.get("author_name", "")).strip()
+    if not title:
+        return ""
+
+    return (
+        f"Video title: {title}. "
+        f"Channel: {author}. "
+        "Generate practical learning questions based on the likely concepts in this video topic."
+    )
+
+
+def _cheap_concepts(text: str) -> list[str]:
+    """Fast concept tags without loading transformer models."""
+    stop = {
+        "video", "title", "channel", "generate", "practical", "learning", "questions",
+        "based", "likely", "concepts", "this", "that", "with", "from", "about", "for",
+        "and", "the", "are", "your", "you", "into", "using",
+    }
+    tokens = []
+    for raw in text.lower().replace(".", " ").replace(":", " ").split():
+        token = "".join(ch for ch in raw if ch.isalnum() or ch in {"-", "_"})
+        if len(token) < 4 or token in stop:
+            continue
+        if token not in tokens:
+            tokens.append(token)
+        if len(tokens) >= 5:
+            break
+    return tokens or ["general"]
+
+
 def _load_cached_questions(video_url: str) -> list[dict] | None:
     try:
         client = Redis.from_url(redis_url, decode_responses=True)
@@ -33,13 +146,25 @@ def _load_cached_questions(video_url: str) -> list[dict] | None:
             return None
         data = json.loads(raw)
         if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
+            questions = [item for item in data if isinstance(item, dict)]
+            return None if _looks_like_fallback_questions(questions) else questions
     except (RedisError, json.JSONDecodeError):
         return None
     return None
 
 
+def _is_fallback_session(session: dict | None) -> bool:
+    if not session:
+        return False
+    questions = session.get("questions", [])
+    if not isinstance(questions, list) or not questions:
+        return False
+    return _looks_like_fallback_questions([item for item in questions if isinstance(item, dict)])
+
+
 def _save_cached_questions(video_url: str, questions: list[dict]) -> None:
+    if _looks_like_fallback_questions(questions):
+        return
     try:
         client = Redis.from_url(redis_url, decode_responses=True)
         client.setex(_video_question_cache_key(video_url), video_question_cache_ttl, json.dumps(questions))
@@ -61,11 +186,19 @@ def _is_valid_question(item: dict) -> bool:
     }
     if not required.issubset(set(item.keys())):
         return False
-    if item.get("type") not in {"mcq", "short_answer"}:
+    if str(item.get("type", "")).strip().lower() != "mcq":
         return False
     if item.get("difficulty") not in {"easy", "medium", "hard"}:
         return False
-    if not isinstance(item.get("options"), list):
+    options = item.get("options")
+    if not isinstance(options, list):
+        return False
+    normalized_options = [str(opt).strip() for opt in options if str(opt).strip()]
+    if len(normalized_options) < 4:
+        return False
+
+    answer = str(item.get("answer", "")).strip().upper()
+    if answer not in {"A", "B", "C", "D"}:
         return False
     return True
 
@@ -138,7 +271,7 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             return
 
         cached = loop.run_until_complete(_load_cached_ready())
-        if cached:
+        if cached and not _is_fallback_session(cached):
             async def _persist_cached() -> None:
                 client = AsyncIOMotorClient(mongodb_url)
                 try:
@@ -188,17 +321,24 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             return
         chunks = chunk_transcript(transcript, chunk_size=500)
 
-        concept_index = SessionConceptIndex()
+        use_lightweight_concepts = generation_source == "metadata_fallback"
+        concept_index = None if use_lightweight_concepts else SessionConceptIndex()
         concepts: list[str] = []
         questions: list[dict] = []
         asked_concepts: set[str] = set()
 
         for chunk in chunks[:max_chunks]:
-            chunk_concepts = extract_concepts(chunk)
-            for concept in chunk_concepts:
-                if concept_index.is_new_concept(concept, threshold=concept_similarity_threshold):
-                    concept_index.add_concept(concept)
-                    concepts.append(concept)
+            if use_lightweight_concepts:
+                chunk_concepts = _cheap_concepts(chunk)
+                for concept in chunk_concepts:
+                    if concept not in concepts:
+                        concepts.append(concept)
+            else:
+                chunk_concepts = extract_concepts(chunk)
+                for concept in chunk_concepts:
+                    if concept_index.is_new_concept(concept, threshold=concept_similarity_threshold):
+                        concept_index.add_concept(concept)
+                        concepts.append(concept)
 
             chunk_questions = loop.run_until_complete(generate_questions(chunk))
             for item in chunk_questions:
@@ -239,6 +379,7 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
                             "concepts": sorted(set(concepts)),
                             "questions": questions,
                             "status": "ready",
+                            "generation_source": generation_source,
                         }
                     },
                 )
