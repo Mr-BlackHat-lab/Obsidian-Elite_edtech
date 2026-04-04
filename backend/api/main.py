@@ -1,11 +1,16 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware.sessions import SessionMiddleware
+
+# Load .env from backend/ folder explicitly
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
@@ -42,7 +47,7 @@ async def _warmup_whisper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/learnpulse")
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
     client = AsyncIOMotorClient(mongodb_url)
     db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
     app.state.mongo_client = client

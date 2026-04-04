@@ -84,3 +84,9 @@ Thumbs.db
 # Mongo / Redis local data
 mongo_data/
 redis_data/
+
+.gitignore
+docker-compose.yml
+Dockerfile
+requirements.txt
+requirements-dev.txt

@@ -1,253 +1,633 @@
-# OB: Video-to-Quiz Learning Engine
+<div align="center">
 
-Turn passive video watching into active learning.
+# 🧠 LearnPulse AI
 
-This project converts video content (YouTube or local files) into structured quizzes with difficulty levels, concept grouping, and performance tracking.
+### Turn Passive Video Watching into Active Learning
 
-## Why This Stack
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.0+-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://mongodb.com)
+[![Redis](https://img.shields.io/badge/Redis-7.0+-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![GitHub OAuth](https://img.shields.io/badge/GitHub-OAuth-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com)
+[![JWT](https://img.shields.io/badge/JWT-Auth-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io)
 
-This version intentionally removes Svelte and keeps the system practical, scalable, and buildable:
+> **LearnPulse AI** is an intelligent EdTech platform that converts any YouTube video or live stream into an interactive quiz experience — in real time. Stop watching passively. Start learning actively.
 
-- Python handles AI/NLP where it is strongest.
-- Rust provides a fast, reliable backend API layer.
-- React (or vanilla JS) powers the browser extension without heavy framework overhead.
-- SQLite starts simple; PostgreSQL comes later.
+[🚀 Quick Start](#️-getting-started) • [📡 API Docs](#-api-reference) • [🏗️ Architecture](#️-system-architecture) • [🔐 Auth](#-authentication-flow) • [🤝 Contributing](#-contributing)
 
-## Updated Tech Stack
+</div>
 
-### Input and Extraction
+---
 
-- YouTube API (captions)
-- FFmpeg (audio extraction)
-- Whisper or faster-whisper (fallback when captions are missing, plus live support)
+## 📸 What It Looks Like
 
-### AI and Processing Layer
-
-- Python (core AI service)
-- spaCy (keyword/entity extraction, NLP basics)
-- sentence-transformers + FAISS (semantic grouping and retrieval)
-- LLM provider:
-  - Google Gemini API, or
-  - Local models via Ollama (LLaMA, Mistral)
-
-### Backend
-
-- Rust (Axum or Actix Web)
-- Responsibilities:
-  - API endpoints
-  - job orchestration
-  - communication with Python AI service
-
-### Interfaces
-
-- CLI first (recommended MVP)
-  - Python CLI (Typer), or
-  - Node.js CLI (commander)
-- Browser extension (later)
-  - Manifest v3
-  - React + Vite, or vanilla JS
-  - Tailwind or plain CSS
-
-### Storage
-
-- SQLite (MVP)
-- PostgreSQL (scaling phase)
-- Redis (optional caching)
-
-### Dev Environment
-
-- Docker + Docker Compose for:
-  - Rust backend
-  - Python AI service
-  - database
-
-## High-Level Architecture
-
-```text
-[Browser/CLI]
-				|
-[React Extension / CLI]
-				|
-[Rust Backend]
-				|
-[Python AI Service]
-				|
-[LLM + NLP + FAISS]
-				|
-[Database]
+```
+╔══════════════════════════════════════════════════════════════════╗
+║                    🎬  YouTube Video Player                      ║
+║  ┌────────────────────────────────────────────────────────────┐  ║
+║  │  ▶  Introduction to Machine Learning          [08:42] ──  │  ║
+║  └────────────────────────────────────────────────────────────┘  ║
+║                                                                  ║
+║  ╔══════════════════ 🧠 QUIZ OVERLAY ═══════════════════════╗   ║
+║  ║                                                           ║   ║
+║  ║  Quick Check! — Neural Networks                          ║   ║
+║  ║  ─────────────────────────────────────────────────────   ║   ║
+║  ║  What is the main purpose of a loss function?            ║   ║
+║  ║                                                           ║   ║
+║  ║   ○  A) To initialize model weights                      ║   ║
+║  ║   ●  B) To measure prediction error              ✓ +10  ║   ║
+║  ║   ○  C) To normalize the input data                      ║   ║
+║  ║   ○  D) To split the training dataset                    ║   ║
+║  ║                                                           ║   ║
+║  ║  ████████████████████░░░░  Score: 85%                    ║   ║
+║  ║  Topic: Neural Networks  |  Difficulty: Medium            ║   ║
+║  ╚═══════════════════════════════════════════════════════════╝   ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-## Build Stages
-
-### Stage 1: CLI MVP (Foundation)
-
-Goal: `Video -> Questions`
-
-1. Accept input: YouTube URL or local file.
-2. Extract transcript via captions or Whisper.
-3. Clean and chunk transcript.
-4. Send chunks to LLM.
-5. Generate easy, medium, and hard questions.
-6. Print results in CLI.
-
-Deliverable: end-to-end quiz generation without UI.
-
-### Stage 2: Concept Intelligence
-
-Goal: improve relevance and structure.
-
-1. Extract keywords and entities with spaCy.
-2. Group transcript into concept/topic clusters.
-3. Store embeddings in FAISS.
-4. Link generated questions to concepts.
-
-Deliverable: concept-aware question generation.
-
-### Stage 3: Question Engine Upgrade
-
-Goal: become a real learning engine.
-
-1. Enforce difficulty logic:
-   - Easy: recall
-   - Medium: explain
-   - Hard: apply
-2. Support question types:
-   - MCQ
-   - short answer
-   - true/false
-3. Generate answers and explanations.
-
-Deliverable: richer and pedagogically meaningful quizzes.
-
-### Stage 4: Performance Tracking
-
-Goal: track learning outcomes.
-
-1. Store attempts in SQLite.
-2. Track score trends and weak concepts.
-3. Generate targeted feedback.
-
-Deliverable: measurable progress and diagnostics.
-
-### Stage 5: Browser Extension (React)
-
-Goal: interrupt passive learning loops.
-
-1. Detect supported video pages.
-2. Inject overlay UI via content scripts.
-3. Add controls: Start Quiz, Auto Mode.
-4. Pause video periodically.
-5. Show quiz modal and capture answers.
-
-Deliverable: interactive in-video learning experience.
-
-### Stage 6: Live Video Support
-
-Goal: near real-time quiz generation.
-
-1. Capture live audio stream.
-2. Stream chunks to Whisper.
-3. Process transcript windows (about 30s).
-4. Generate short-form questions continuously.
-5. Display real-time quiz overlays.
-
-Deliverable: live-session learning prompts.
-
-### Stage 7: Polish and Expansion
-
-- Add caching strategy.
-- Improve prompts and guardrails.
-- Add spaced repetition.
-- Export tests (PDF/JSON).
-- Add user profiles.
-
-## Project Structure (Planned)
-
-```text
-.
-|-- rust-backend/
-|-- python-ai-service/
-|-- cli/
-|-- extension/
-|-- docs/
-|   |-- CLI_BACKEND_FRONTEND_GUIDE.md
-|   `-- STAGE_DEMO_RUNBOOK.md
-|-- infra/
-|   `-- docker-compose.yml
-`-- README.md
+```
+╔══════════════════════════════════════════════════════════════════╗
+║                  📊  Performance Dashboard                       ║
+║                                                                  ║
+║   Overall Accuracy          Topic Breakdown                      ║
+║   ┌──────────────┐          ┌─────────────────────────────┐     ║
+║   │     85%      │          │ Neural Networks   ████ 90%  │     ║
+║   │  ████████░░  │          │ Backpropagation   ███░ 70%  │     ║
+║   │  17/20 ✓     │          │ Optimization      ██░░ 55% ⚠│     ║
+║   └──────────────┘          │ Loss Functions    █████100% │     ║
+║                             └─────────────────────────────┘     ║
+║   ⚠ Weak Topics: Optimization                                   ║
+║   💡 Revise "Optimization" before your next session             ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
-## CLI Usage
+---
 
-For complete backend/frontend CLI integration and secret handling, see:
+## 🚀 Key Features
 
-- `docs/CLI_BACKEND_FRONTEND_GUIDE.md`
+| Feature | Description | Status |
+|---------|-------------|--------|
+| 🎥 **Video-to-Quiz** | Paste any YouTube URL → get instant quizzes | ✅ Live |
+| 🔴 **Live Stream Quiz** | Real-time quiz from live audio via WebSocket | ✅ Live |
+| 🧠 **AI-Powered** | Google Gemini generates contextual questions | ✅ Live |
+| 📊 **Performance Tracking** | Track scores, weak topics, progress over time | ✅ Live |
+| 🔐 **JWT Auth** | Secure login/signup with bcrypt + JWT tokens | ✅ Live |
+| 🐙 **GitHub OAuth** | One-click login with GitHub account | ✅ Live |
+| 👤 **User CRUD** | Full profile management (read/update/delete) | ✅ Live |
+| ⚡ **Adaptive Difficulty** | Easy → Medium → Hard based on your score | ✅ Live |
+| 🔄 **Celery Workers** | Async video processing with Redis queue | ✅ Live |
+| 🌐 **Browser Extension** | Chrome extension with in-video quiz overlay | ✅ Live |
+| 🖥️ **Python CLI** | Command-line tool for processing & testing | ✅ Live |
 
-For presentation-ready validation commands, see:
+---
 
-- `docs/STAGE_DEMO_RUNBOOK.md`
+## 🏗️ System Architecture
 
-Install the CLI dependencies first:
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                         CLIENT LAYER                                ║
+║                                                                      ║
+║   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐   ║
+║   │  🌐 Browser     │  │  🔌 Chrome      │  │  💻 Python      │   ║
+║   │     Frontend    │  │    Extension    │  │      CLI        │   ║
+║   │                 │  │  (TypeScript)   │  │    (Click)      │   ║
+║   └────────┬────────┘  └────────┬────────┘  └────────┬────────┘   ║
+╚════════════╪════════════════════╪════════════════════╪════════════╝
+             │                   │                    │
+             └───────────────────┼────────────────────┘
+                                 │
+                          HTTP REST / WebSocket
+                                 │
+╔════════════════════════════════▼═════════════════════════════════════╗
+║                        FASTAPI BACKEND                               ║
+║                         (Python 3.11+)                               ║
+║                                                                      ║
+║  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ║
+║  │   🔐 /auth/*     │  │   👤 /users/*    │  │  🎓 Learning     │  ║
+║  │                  │  │                  │  │                  │  ║
+║  │ POST /register   │  │ GET    /me       │  │ POST /transcribe │  ║
+║  │ POST /login      │  │ PUT    /me       │  │ POST /generate-  │  ║
+║  │ GET  /github     │  │ DELETE /me       │  │      questions   │  ║
+║  │ GET  /github/    │  │ GET    /{id}     │  │ POST /submit-    │  ║
+║  │      callback    │  │ GET    /         │  │      answer      │  ║
+║  │                  │  │                  │  │ GET  /session/   │  ║
+║  │ JWT + bcrypt     │  │ JWT Protected    │  │ GET  /performance│  ║
+║  │ GitHub OAuth     │  │ Pagination       │  │ WS   /ws/live    │  ║
+║  └──────────────────┘  └──────────────────┘  └──────────────────┘  ║
+╚══════════════════════════════════╪═══════════════════════════════════╝
+                                   │
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+╔═════════════▼══════╗  ╔══════════▼═════════╗  ╔══════▼══════════════╗
+║     MongoDB        ║  ║       Redis        ║  ║   Celery Worker     ║
+║                    ║  ║                    ║  ║                     ║
+║  users collection  ║  ║  Task queue        ║  ║  process_video_task ║
+║  sessions          ║  ║  Video cache       ║  ║  Transcription      ║
+║  questions         ║  ║  Live buffers      ║  ║  Question gen       ║
+║  attempts          ║  ║  OAuth state       ║  ║  Concept extract    ║
+╚════════════════════╝  ╚════════════════════╝  ╚══════════╪══════════╝
+                                                            │
+                                               ╔════════════▼═══════════╗
+                                               ║    AI / NLP Layer      ║
+                                               ║                        ║
+                                               ║  Google Gemini API     ║
+                                               ║  spaCy (NLP)           ║
+                                               ║  FAISS (Semantic)      ║
+                                               ║  sentence-transformers ║
+                                               ╚════════════════════════╝
+```
+
+---
+
+## 🔐 Authentication Flow
+
+```
+┌──────────┐                                      ┌──────────────────┐
+│  Client  │                                      │  FastAPI Backend │
+└────┬─────┘                                      └────────┬─────────┘
+     │                                                     │
+     │  ══════════════ NORMAL SIGNUP ══════════════════    │
+     │                                                     │
+     │  POST /auth/register                                │
+     │  { username, email, password }  ──────────────────► │
+     │                                                     ├─ check duplicate username
+     │                                                     ├─ check duplicate email
+     │                                                     ├─ bcrypt hash password
+     │                                                     ├─ save User to MongoDB
+     │  { user_id, username, token }  ◄────────────────── ├─ generate JWT token
+     │                                                     │
+     │  ══════════════ NORMAL LOGIN ═══════════════════    │
+     │                                                     │
+     │  POST /auth/login                                   │
+     │  { username, password }  ──────────────────────── ► │
+     │                                                     ├─ find user in MongoDB
+     │                                                     ├─ bcrypt.verify(password)
+     │  { user_id, username, token }  ◄────────────────── ├─ generate JWT token
+     │                                                     │
+     │  ══════════════ GITHUB OAUTH ═══════════════════    │
+     │                                                     │
+     │  GET /auth/github  ────────────────────────────── ► │
+     │  ◄──────── 302 Redirect to GitHub Login ─────────── │
+     │                                                     │
+     │  [User logs in on GitHub]                           │
+     │                                                     │
+     │  GET /auth/github/callback  ───────────────────── ► │
+     │                                                     ├─ exchange code for token
+     │                                                     ├─ GET github.com/user
+     │                                                     ├─ GET github.com/user/emails
+     │                                                     ├─ get or create user in DB
+     │  ◄──── 302 Redirect /?token=<JWT> ──────────────── ├─ generate JWT token
+     │                                                     │
+     │  ══════════════ PROTECTED ROUTES ══════════════     │
+     │                                                     │
+     │  GET /users/me                                      │
+     │  Authorization: Bearer <JWT>  ─────────────────── ► │
+     │                                                     ├─ decode JWT
+     │                                                     ├─ validate signature
+     │  { user profile }  ◄──────────────────────────────  ├─ return user data
+     │                                                     │
+└────┴─────┘                                      └────────┴─────────┘
+```
+
+---
+
+## 🎓 Video Processing Flow
+
+```
+  User Input
+      │
+      │  POST /transcribe
+      │  { video_url, user_id }
+      ▼
+╔═════════════════════════════╗
+║   Check existing session    ║  ──► Already exists? Return cached session ✅
+╚══════════════╪══════════════╝
+               │ New video
+               ▼
+╔═════════════════════════════╗
+║   Create session in MongoDB ║
+║   status: "processing"      ║
+╚══════════════╪══════════════╝
+               │
+               ▼
+╔═════════════════════════════╗
+║   Celery Task (async)       ║  ──► Returns session_id immediately to user
+║   process_video_task.delay()║
+╚══════════════╪══════════════╝
+               │
+       ┌───────┴────────┐
+       │                │
+       ▼                ▼
+╔════════════╗   ╔══════════════════╗
+║  YouTube   ║   ║  Whisper/Gemini  ║
+║  Captions  ║   ║  Transcription   ║
+║  (fast)    ║   ║  (fallback)      ║
+╚═════╪══════╝   ╚════════╪═════════╝
+       └───────┬────────┘
+               │  transcript text
+               ▼
+╔═════════════════════════════╗
+║   spaCy Concept Extraction  ║
+║   → keywords, entities      ║
+╚══════════════╪══════════════╝
+               │
+               ▼
+╔═════════════════════════════╗
+║   FAISS Semantic Grouping   ║
+║   → concept clusters        ║
+╚══════════════╪══════════════╝
+               │
+               ▼
+╔═════════════════════════════╗
+║   Gemini Question Generator ║
+║   Easy  / Medium / Hard     ║
+║   MCQ   / Short / True-False║
+╚══════════════╪══════════════╝
+               │
+               ▼
+╔═════════════════════════════╗
+║   Save to MongoDB session   ║
+║   status: "ready" ✅        ║
+╚═════════════════════════════╝
+```
+
+---
+
+## 🔴 Live Stream Flow
+
+```
+Chrome Extension                  WebSocket /ws/live              Backend
+      │                                   │                          │
+      │── connect(session_id, user_id) ──►│                          │
+      │                                   │◄─── accept connection ───│
+      │                                   │                          │
+      │── { audio_base64: "..." } ───────►│                          │
+      │                                   │── transcribe chunk ─────►│
+      │                                   │◄── chunk_text ───────────│
+      │                                   │                          │
+      │                                   │── save to Redis buffer   │
+      │                                   │── check quiz trigger?    │
+      │                                   │                          │
+      │                                   │── extract concepts ─────►│
+      │                                   │── find new concept       │
+      │                                   │── generate question ────►│ Gemini
+      │                                   │◄── question ─────────────│
+      │                                   │                          │
+      │◄── { type: "SHOW_QUIZ",           │                          │
+      │      question: {...} } ───────────│                          │
+      │                                   │                          │
+      │── [user answers] ────────────────►│ POST /submit-answer      │
+      │◄── { correct, score, feedback } ──│                          │
+```
+
+---
+
+## 📡 API Reference
+
+### 🔐 Auth Endpoints
+> All implemented in `backend/api/routes/auth.py`
+
+| Method | URL | Auth | Description | Status |
+|--------|-----|------|-------------|--------|
+| `POST` | `/auth/register` | ❌ | Create new account | ✅ Implemented |
+| `POST` | `/auth/login` | ❌ | Login, receive JWT | ✅ Implemented |
+| `GET` | `/auth/github` | ❌ | Start GitHub OAuth | ✅ Implemented |
+| `GET` | `/auth/github/callback` | ❌ | GitHub OAuth callback | ✅ Implemented |
+
+**Register request:**
+```json
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "securepassword"
+}
+```
+**Register / Login response:**
+```json
+{
+  "user_id": "abc123",
+  "username": "john_doe",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+---
+
+### 👤 User CRUD Endpoints
+> All implemented in `backend/api/routes/users.py`
+
+| Method | URL | Auth | Description | Status |
+|--------|-----|------|-------------|--------|
+| `GET` | `/users/me` | ✅ JWT | Get own profile | ✅ Implemented |
+| `PUT` | `/users/me` | ✅ JWT | Update username/email/password | ✅ Implemented |
+| `DELETE` | `/users/me` | ✅ JWT | Delete own account | ✅ Implemented |
+| `GET` | `/users/{user_id}` | ✅ JWT | Get any user by ID | ✅ Implemented |
+| `GET` | `/users/?skip=0&limit=20` | ✅ JWT | List all users paginated | ✅ Implemented |
+
+**Update profile request:**
+```json
+{
+  "username": "new_username",
+  "email": "new@example.com",
+  "password": "newpassword"
+}
+```
+
+---
+
+### 🎓 Learning Endpoints
+> All implemented in `backend/api/routes/transcription.py` and `performance.py`
+
+| Method | URL | Auth | Description | Status |
+|--------|-----|------|-------------|--------|
+| `POST` | `/transcribe` | ❌ | Submit YouTube URL for processing | ✅ Implemented |
+| `POST` | `/generate-questions` | ❌ | Generate questions from transcript | ✅ Implemented |
+| `POST` | `/submit-answer` | ❌ | Submit answer, get score update | ✅ Implemented |
+| `GET` | `/session/{session_id}` | ❌ | Get session details | ✅ Implemented |
+| `GET` | `/performance/{user_id}` | ❌ | Get user performance report | ✅ Implemented |
+| `WS` | `/ws/live` | ❌ | Live stream quiz WebSocket | ✅ Implemented |
+
+**Transcribe request:**
+```json
+{
+  "video_url": "https://www.youtube.com/watch?v=abc123",
+  "user_id": "user_001"
+}
+```
+**Transcribe response:**
+```json
+{
+  "session_id": "a1b2c3d4e5f6",
+  "status": "processing",
+  "reused": false
+}
+```
+
+**Submit answer request:**
+```json
+{
+  "session_id": "a1b2c3d4e5f6",
+  "question_id": "q_001",
+  "user_answer": "B",
+  "concept_tag": "neural_networks"
+}
+```
+**Submit answer response:**
+```json
+{
+  "correct": true,
+  "explanation": "Loss function measures the difference between predicted and actual values.",
+  "updated_score": 0.85,
+  "weak_topics": ["optimization"]
+}
+```
+
+**Performance response:**
+```json
+{
+  "user_id": "user_001",
+  "overall_accuracy": 0.85,
+  "total_sessions": 5,
+  "total_questions": 40,
+  "topic_breakdown": {
+    "neural_networks": { "correct": 9, "total": 10, "accuracy": 0.9 },
+    "optimization":    { "correct": 3, "total": 6,  "accuracy": 0.5 }
+  },
+  "weak_topics": ["optimization"],
+  "feedback": "You are struggling with optimization. Revise before next session."
+}
+```
+
+---
+
+## 📊 Adaptive Difficulty Engine
+
+```
+╔══════════════════════════════════════════════════════╗
+║              ADAPTIVE DIFFICULTY LOGIC               ║
+╠══════════════════════════════════════════════════════╣
+║                                                      ║
+║   Current Score      →    Next Question Difficulty   ║
+║   ─────────────────────────────────────────────────  ║
+║   score < 0.40       →    🟢 EASY   (recall)         ║
+║   0.40 ≤ score ≤ 0.70→    🟡 MEDIUM (explain)        ║
+║   score > 0.70       →    🔴 HARD   (apply/analyze)  ║
+║                                                      ║
+║   Weak Topic Detection:                              ║
+║   accuracy < 60% with ≥ 2 attempts = weak topic ⚠   ║
+║                                                      ║
+╚══════════════════════════════════════════════════════╝
+```
+
+---
+
+## 📁 Project Structure
+
+```
+Obsidian-Elite_edtech/
+│
+├── 🐍 backend/                         FastAPI Python backend
+│   ├── api/
+│   │   ├── main.py                     App entry, middleware, routers
+│   │   └── routes/
+│   │       ├── auth.py                 ✅ Login, signup, GitHub OAuth, JWT
+│   │       ├── users.py                ✅ User CRUD (me, update, delete, list)
+│   │       ├── transcription.py        ✅ Video processing + WebSocket live
+│   │       └── performance.py          ✅ Scores, analytics, weak topics
+│   ├── models/
+│   │   ├── user.py                     User schema + UserCreateRequest
+│   │   ├── session.py                  Session + answer models
+│   │   └── question.py                 Question schema
+│   ├── services/
+│   │   ├── transcription.py            Whisper / Gemini transcription
+│   │   ├── question_generation.py      Gemini question generation
+│   │   ├── concept_extraction.py       spaCy + FAISS concept engine
+│   │   ├── difficulty_engine.py        Adaptive difficulty logic
+│   │   └── live_stream.py              Live audio buffer + quiz trigger
+│   ├── workers/
+│   │   └── celery_tasks.py             Async video processing tasks
+│   ├── .env                            Local dev environment variables
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── 💻 cli/                             Python CLI tool
+│   ├── commands/
+│   │   ├── process.py                  process command
+│   │   ├── generate_test.py            test command
+│   │   └── show_progress.py            progress command
+│   └── main.py
+│
+├── 🔌 extension/                       Chrome browser extension
+│   ├── src/
+│   │   ├── background/background.ts    Service worker
+│   │   ├── content/quiz_overlay.tsx    Quiz overlay injection
+│   │   └── popup/Popup.tsx             Extension popup UI
+│   └── manifest.json
+│
+├── 📚 docs/
+│   ├── CLI_BACKEND_FRONTEND_GUIDE.md
+│   ├── EXTENSION_DEVELOPER_GUIDE.md
+│   └── STAGE_DEMO_RUNBOOK.md
+│
+├── docker-compose.yml                  Full stack orchestration
+├── .env                                Root environment variables
+└── README.md
+```
+
+---
+
+## ⚙️ Tech Stack
+
+```
+╔══════════════════╦══════════════════════════════════════════════╗
+║  Layer           ║  Technology                                  ║
+╠══════════════════╬══════════════════════════════════════════════╣
+║  Backend API     ║  FastAPI 0.111+, Python 3.11+, Uvicorn       ║
+║  Database        ║  MongoDB 7.0 (Motor async driver)            ║
+║  Cache / Queue   ║  Redis 7.0 + Celery 5.4                      ║
+║  AI / NLP        ║  Google Gemini, spaCy, FAISS, transformers   ║
+║  Auth            ║  JWT (python-jose), bcrypt, GitHub OAuth     ║
+║  Browser Ext     ║  TypeScript, React, Webpack, Manifest V3     ║
+║  CLI             ║  Click (Python)                              ║
+║  DevOps          ║  Docker, Docker Compose                      ║
+╚══════════════════╩══════════════════════════════════════════════╝
+```
+
+---
+
+## 🛠️ Getting Started
+
+### Prerequisites
+- Docker Desktop installed and running
+- Python 3.11+
+- Node.js 18+ (for extension only)
+- Google Gemini API key → [Get one here](https://makersuite.google.com/app/apikey)
+- GitHub OAuth App → [Create here](https://github.com/settings/developers)
+
+### 1. Clone & Configure
+
+```bash
+git clone https://github.com/Mr-BlackHat-lab/Obsidian-Elite_edtech.git
+cd Obsidian-Elite_edtech
+cp .env.example .env
+```
+
+Fill in your `.env`:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+JWT_SECRET=supersecretkey
+JWT_ALGORITHM=HS256
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+```
+
+### 2. Run with Docker (Recommended)
+
+```bash
+docker-compose up --build
+```
+
+```
+✅ Backend API   →  http://localhost:8000
+✅ MongoDB       →  localhost:27017
+✅ Redis         →  localhost:6379
+✅ Celery Worker →  background
+```
+
+### 3. Verify It's Running
+
+```bash
+curl http://localhost:8000/health
+# → {"status": "ok", "service": "LearnPulse AI"}
+```
+
+### 4. Open API Docs
+
+```
+http://localhost:8000/docs     ← Swagger UI (interactive)
+http://localhost:8000/redoc    ← ReDoc (readable)
+```
+
+### 5. CLI Usage
 
 ```bash
 cd cli
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
+
+# Process a YouTube video
+python main.py process --url "https://www.youtube.com/watch?v=your_video"
+
+# Take the generated quiz
+python main.py test --session-id <session_id>
+
+# View your performance
+python main.py progress --user-id <user_id>
+
+# Export results to JSON
+python main.py test --session-id <session_id> --export-path results.json
 ```
 
-Run the commands from inside the `cli/` folder:
+### 6. Chrome Extension
 
 ```bash
-python main.py process --url "https://www.youtube.com/watch?v=demo"
-python main.py test --session-id demo-session
-python main.py progress --user-id cli_user
+cd extension
+npm install
+npm run build
 ```
 
-Export quiz results to JSON:
+1. Open `chrome://extensions/`
+2. Enable **Developer Mode** (top right)
+3. Click **Load unpacked**
+4. Select the `extension/` folder
+5. Open any YouTube video and start learning!
+
+---
+
+## 🌐 GitHub OAuth Setup
+
+```
+1. Go to → https://github.com/settings/developers
+2. Click  → "New OAuth App"
+3. Fill   → Homepage URL:  http://localhost:8000
+            Callback URL:  http://localhost:8000/auth/github/callback
+4. Copy   → Client ID and Client Secret into .env
+```
+
+---
+
+## 🤝 Contributing
 
 ```bash
-python main.py test --session-id demo-session --export-path demo_results.json
+# 1. Create a new branch
+git checkout -b feature/your-feature
+
+# 2. Make your changes
+# 3. Stage and commit
+git add .
+git commit -m "feat: your feature description"
+
+# 4. Push — run from project ROOT not backend/
+cd D:\Coding\Team\Obsidian-Elite_edtech
+git push origin feature/your-feature
 ```
 
-Default export behavior:
+Then open a Pull Request on GitHub.
 
-- If `--export-path` is not provided, the CLI writes `{session_id}_results.json` in the current directory.
+---
 
-Redis video cache helper:
-
-- If `/transcribe` is not ready (404), `process` will read/write `vidcache:{video_url}` in Redis (24h TTL).
-- This keeps demo flows stable by reusing known session IDs.
-
-### Demo Flow
-
-1. Run `process` to create or load a session.
-2. Run `test` to answer the generated questions and export a JSON report.
-3. Run `progress` to see your topic breakdown and feedback.
-
-## MVP Definition
-
-MVP is complete when the CLI can:
-
-- ingest a YouTube URL or local video,
-- produce transcript text,
-- generate multi-difficulty questions,
-- output answers and explanations.
-
-No browser UI required for MVP.
-
-## Known Risks (Brutal Truth)
-
-- React extension debugging can be slow and painful.
-- Live transcription is error-prone under real-world audio conditions.
-- LLM usage costs can climb quickly without guardrails and caching.
-
-## Suggested Development Order
-
-1. Build Stage 1 fully in Python CLI.
-2. Split AI logic into a Python service API.
-3. Add Rust backend orchestration.
-4. Add storage and tracking.
-5. Build extension once the engine is stable.
-
-## License
+## 📄 License
 
 TBD
+
+---
+
+<div align="center">
+
+Built with ❤️ by **Obsidian Elite** — making learning active, not passive.
+
+⭐ Star this repo if you find it useful!
+
+</div>

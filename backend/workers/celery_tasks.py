@@ -143,6 +143,7 @@ def _load_cached_questions(video_url: str) -> list[dict] | None:
         raw = client.get(_video_question_cache_key(video_url))
         client.close()
         if not raw:
+               
             return None
         data = json.loads(raw)
         if isinstance(data, list):
