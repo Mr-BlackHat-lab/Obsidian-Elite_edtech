@@ -1,0 +1,39 @@
+{
+  "summary": {
+    "session_id": "aa5cd212-c09",
+    "user_id": "fixcheck4",
+    "submitted_at": "2026-04-04T02:23:13.929261+00:00",
+    "total_questions": 3,
+    "correct_answers": 3,
+    "accuracy": 100.0
+  },
+  "results": [
+    {
+      "question_id": "q_fallback_1",
+      "question": "What is the best first step when learning installing?",
+      "difficulty": "easy",
+      "concept_tag": "installing",
+      "user_answer": "A",
+      "correct": true,
+      "explanation": "This fallback answer is used when AI generation is unavailable."
+    },
+    {
+      "question_id": "q_fallback_2",
+      "question": "Which statement best describes galaxy?",
+      "difficulty": "easy",
+      "concept_tag": "galaxy",
+      "user_answer": "A",
+      "correct": true,
+      "explanation": "This fallback answer is used when AI generation is unavailable."
+    },
+    {
+      "question_id": "q_fallback_3",
+      "question": "Why is android important in practice?",
+      "difficulty": "medium",
+      "concept_tag": "android",
+      "user_answer": "A",
+      "correct": true,
+      "explanation": "This fallback answer is used when AI generation is unavailable."
+    }
+  ]
+}

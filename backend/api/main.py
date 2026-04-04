@@ -19,8 +19,23 @@ async def _warmup_whisper() -> None:
         await asyncio.to_thread(get_whisper_model)
         print("[startup] Whisper model loaded.")
     except Exception as exc:
+        message = str(exc)
+
+        # If the cached Whisper model file is corrupted, remove it once and retry.
+        if "SHA256 checksum" in message:
+            model_name = os.getenv("WHISPER_MODEL", "base")
+            cache_file = f"/root/.cache/whisper/{model_name}.pt"
+            try:
+                os.remove(cache_file)
+                print(f"[startup] Removed corrupted Whisper cache: {cache_file}")
+                await asyncio.to_thread(get_whisper_model)
+                print("[startup] Whisper model loaded after cache refresh.")
+                return
+            except Exception as retry_exc:
+                message = f"{message}; retry failed: {retry_exc}"
+
         # Non-fatal — live transcription will still work, just slower on first chunk
-        print(f"[startup] Whisper warm-up skipped: {exc}")
+        print(f"[startup] Whisper warm-up skipped: {message}")
 
 
 @asynccontextmanager

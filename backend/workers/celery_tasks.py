@@ -3,6 +3,8 @@ import asyncio
 import sys
 import json
 from pathlib import Path
+from urllib.parse import quote_plus
+from urllib.request import Request, urlopen
 
 from celery import Celery
 from celery.exceptions import MaxRetriesExceededError
@@ -89,6 +91,50 @@ def _demo_questions(video_url: str) -> list[dict]:
             "concept_tag": "containers",
         },
     ]
+
+
+def _metadata_transcript(video_url: str) -> str:
+    """Build a lightweight transcript proxy from public YouTube metadata."""
+    try:
+        oembed_url = (
+            "https://www.youtube.com/oembed"
+            f"?url={quote_plus(video_url)}&format=json"
+        )
+        req = Request(oembed_url, headers={"User-Agent": "LearnPulse/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return ""
+
+    title = str(payload.get("title", "")).strip()
+    author = str(payload.get("author_name", "")).strip()
+    if not title:
+        return ""
+
+    return (
+        f"Video title: {title}. "
+        f"Channel: {author}. "
+        "Generate practical learning questions based on the likely concepts in this video topic."
+    )
+
+
+def _cheap_concepts(text: str) -> list[str]:
+    """Fast concept tags without loading transformer models."""
+    stop = {
+        "video", "title", "channel", "generate", "practical", "learning", "questions",
+        "based", "likely", "concepts", "this", "that", "with", "from", "about", "for",
+        "and", "the", "are", "your", "you", "into", "using",
+    }
+    tokens = []
+    for raw in text.lower().replace(".", " ").replace(":", " ").split():
+        token = "".join(ch for ch in raw if ch.isalnum() or ch in {"-", "_"})
+        if len(token) < 4 or token in stop:
+            continue
+        if token not in tokens:
+            tokens.append(token)
+        if len(tokens) >= 5:
+            break
+    return tokens or ["general"]
 
 
 def _load_cached_questions(video_url: str) -> list[dict] | None:
@@ -257,46 +303,64 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             loop.run_until_complete(_persist_cached())
             return
 
+        generation_source = "transcript"
         try:
             transcript = loop.run_until_complete(get_transcript(video_url))
         except ValueError as exc:
-            async def _mark_failed() -> None:
-                client = AsyncIOMotorClient(mongodb_url)
-                try:
-                    db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
-                    db = client[db_name]
-                    await db.sessions.update_one(
-                        {"session_id": session_id},
-                        {
-                            "$set": {
-                                "status": "ready",
-                                "error": str(exc),
-                                "transcript": "",
-                                "concepts": ["docker fundamentals", "kubernetes basics", "containers"],
-                                "questions": _demo_questions(video_url),
-                                "generation_source": "demo_fallback",
-                                "cache_hit": False,
-                                "cache_source": "demo_fallback",
-                            }
-                        },
-                    )
-                finally:
-                    client.close()
-            loop.run_until_complete(_mark_failed())
-            return
+            transcript = _metadata_transcript(video_url)
+            if transcript:
+                generation_source = "metadata_fallback"
+            else:
+                generation_source = "demo_fallback"
+
+            if transcript:
+                # Continue the normal question-generation pipeline using metadata-derived context.
+                pass
+            else:
+                async def _mark_failed() -> None:
+                    client = AsyncIOMotorClient(mongodb_url)
+                    try:
+                        db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
+                        db = client[db_name]
+                        await db.sessions.update_one(
+                            {"session_id": session_id},
+                            {
+                                "$set": {
+                                    "status": "ready",
+                                    "error": str(exc),
+                                    "transcript": "",
+                                    "concepts": ["docker fundamentals", "kubernetes basics", "containers"],
+                                    "questions": _demo_questions(video_url),
+                                    "generation_source": "demo_fallback",
+                                    "cache_hit": False,
+                                    "cache_source": "demo_fallback",
+                                }
+                            },
+                        )
+                    finally:
+                        client.close()
+                loop.run_until_complete(_mark_failed())
+                return
         chunks = chunk_transcript(transcript, chunk_size=500)
 
-        concept_index = SessionConceptIndex()
+        use_lightweight_concepts = generation_source == "metadata_fallback"
+        concept_index = None if use_lightweight_concepts else SessionConceptIndex()
         concepts: list[str] = []
         questions: list[dict] = []
         asked_concepts: set[str] = set()
 
         for chunk in chunks[:max_chunks]:
-            chunk_concepts = extract_concepts(chunk)
-            for concept in chunk_concepts:
-                if concept_index.is_new_concept(concept, threshold=concept_similarity_threshold):
-                    concept_index.add_concept(concept)
-                    concepts.append(concept)
+            if use_lightweight_concepts:
+                chunk_concepts = _cheap_concepts(chunk)
+                for concept in chunk_concepts:
+                    if concept not in concepts:
+                        concepts.append(concept)
+            else:
+                chunk_concepts = extract_concepts(chunk)
+                for concept in chunk_concepts:
+                    if concept_index.is_new_concept(concept, threshold=concept_similarity_threshold):
+                        concept_index.add_concept(concept)
+                        concepts.append(concept)
 
             chunk_questions = loop.run_until_complete(generate_questions(chunk))
             for item in chunk_questions:
@@ -337,6 +401,7 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
                             "concepts": sorted(set(concepts)),
                             "questions": questions,
                             "status": "ready",
+                            "generation_source": generation_source,
                         }
                     },
                 )

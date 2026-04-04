@@ -135,20 +135,99 @@ def _safe_json_loads(content: str) -> dict | list:
 
 
 def _fallback_questions(transcript_chunk: str) -> list[dict]:
-    """Deterministic fallback to keep local/dev flow working without OpenAI."""
-    seed = transcript_chunk.strip()[:80] or "this topic"
+    """Deterministic fallback that still returns usable MCQs when provider calls fail."""
+    text = transcript_chunk.strip().lower()
+    tokens = []
+    for raw in re.findall(r"[a-zA-Z0-9_-]+", text):
+        if len(raw) < 4:
+            continue
+        if raw in {"video", "title", "channel", "topic", "learn", "learning", "question", "questions"}:
+            continue
+        if raw not in tokens:
+            tokens.append(raw)
+        if len(tokens) >= 3:
+            break
+
+    topic = tokens[0] if tokens else "core concept"
+    secondary = tokens[1] if len(tokens) > 1 else "main workflow"
+    tertiary = tokens[2] if len(tokens) > 2 else "practical usage"
+
     return [
         {
-            "question_id": f"q_{index + 1}",
-            "question": f"What best describes {seed}?" if index < 2 else f"Why is '{seed}' important?",
+            "question_id": "q_fallback_1",
+            "question": f"What is the best first step when learning {topic}?",
             "type": "mcq",
-            "difficulty": "easy" if index < 2 else ("medium" if index < 4 else "hard"),
-            "options": ["Option A", "Option B", "Option C", "Option D"],
-            "answer": "B",
+            "difficulty": "easy",
+            "options": [
+                f"Understand the basic definition of {topic}",
+                "Memorize random commands without context",
+                "Skip fundamentals and start with edge cases",
+                "Avoid documentation completely",
+            ],
+            "answer": "A",
             "explanation": "This fallback answer is used when AI generation is unavailable.",
-            "concept_tag": "general",
-        }
-        for index in range(5)
+            "concept_tag": topic,
+        },
+        {
+            "question_id": "q_fallback_2",
+            "question": f"Which statement best describes {secondary}?",
+            "type": "mcq",
+            "difficulty": "easy",
+            "options": [
+                f"{secondary} is a relevant concept in this topic area",
+                f"{secondary} means disabling all features permanently",
+                f"{secondary} can never be tested or improved",
+                f"{secondary} is unrelated to software systems",
+            ],
+            "answer": "A",
+            "explanation": "This fallback answer is used when AI generation is unavailable.",
+            "concept_tag": secondary,
+        },
+        {
+            "question_id": "q_fallback_3",
+            "question": f"Why is {tertiary} important in practice?",
+            "type": "mcq",
+            "difficulty": "medium",
+            "options": [
+                f"It helps apply {topic} in realistic scenarios",
+                "It removes the need for testing and validation",
+                "It guarantees zero failures in production",
+                "It only matters for unrelated hardware topics",
+            ],
+            "answer": "A",
+            "explanation": "This fallback answer is used when AI generation is unavailable.",
+            "concept_tag": tertiary,
+        },
+        {
+            "question_id": "q_fallback_4",
+            "question": "What is a good way to verify understanding of a new concept?",
+            "type": "mcq",
+            "difficulty": "medium",
+            "options": [
+                "Build a small example and explain each step",
+                "Rely only on guesses without checking outcomes",
+                "Ignore errors and continue unchanged",
+                "Avoid comparing expected vs actual results",
+            ],
+            "answer": "A",
+            "explanation": "This fallback answer is used when AI generation is unavailable.",
+            "concept_tag": topic,
+        },
+        {
+            "question_id": "q_fallback_5",
+            "question": f"Which approach is most robust when implementing {topic}?",
+            "type": "mcq",
+            "difficulty": "hard",
+            "options": [
+                "Use incremental changes with monitoring and rollback plans",
+                "Deploy everything at once without validation",
+                "Skip observability and post-deploy checks",
+                "Assume defaults always fit every environment",
+            ],
+            "answer": "A",
+            "explanation": "This fallback answer is used when AI generation is unavailable.",
+            "concept_tag": topic,
+        },
     ]
 
 
