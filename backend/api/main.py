@@ -1,14 +1,21 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from starlette.middleware.sessions import SessionMiddleware
+
+# Load .env from backend/ folder explicitly
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
+from api.routes.users import router as users_router
 
 
 async def _warmup_whisper() -> None:
@@ -40,7 +47,7 @@ async def _warmup_whisper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/learnpulse")
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
     client = AsyncIOMotorClient(mongodb_url)
     db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
     app.state.mongo_client = client
@@ -52,6 +59,7 @@ async def lifespan(app: FastAPI):
     await app.state.db.sessions.create_index("video_url")
     await app.state.db.users.create_index("user_id", unique=True)
     await app.state.db.users.create_index("username", unique=True)
+    await app.state.db.users.create_index("email", sparse=True)
 
     # Warm up Whisper in background — don’t block startup if it fails
     asyncio.create_task(_warmup_whisper())
@@ -70,6 +78,10 @@ allowed_origins = [
 ]
 
 app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET", "changeme"),
+)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
@@ -78,6 +90,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(performance_router)
 app.include_router(transcription_router)
 
