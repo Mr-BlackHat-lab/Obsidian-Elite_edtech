@@ -18,7 +18,7 @@ flowchart LR
   E -->|POST /transcribe| B[FastAPI Backend]
   E -->|POST /generate-questions| B
   E -->|POST /submit-answer| B
-  B -->|GET /session/{session_id}| E
+  B -->|GET /session/:session_id| E
 
   C[Python CLI] -->|process/test/progress| B
   F[React Frontend] -->|auth + dashboard + performance APIs| B

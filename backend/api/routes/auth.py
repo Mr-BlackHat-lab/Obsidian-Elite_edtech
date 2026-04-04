@@ -10,7 +10,6 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from jose import jwt
-from starlette.config import Config
 
 
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -23,8 +22,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "changeme")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
-config = Config(".env")
-oauth = OAuth(config)
+oauth = OAuth()
 
 oauth.register(
     name="github",

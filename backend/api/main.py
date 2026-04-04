@@ -49,8 +49,8 @@ async def _warmup_whisper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Respect MONGODB_URL from env; keep Docker service URL as the default.
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/learnpulse")
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
     client = AsyncIOMotorClient(mongodb_url)
     db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
     app.state.mongo_client = client
