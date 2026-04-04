@@ -53,6 +53,56 @@ let demoMode = false;
 let deviceUserId = "";
 let checkpointTimer: ReturnType<typeof setInterval> | null = null;
 let initRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let demoQuestionIndex = 0;
+
+const DEMO_VIDEO_ID = "ZzI9JE0i6Lc";
+
+const DEMO_QUESTIONS: Question[] = [
+  {
+    question_id: "demo-zzi9-1",
+    question: "What is the main purpose of a Docker volume?",
+    type: "mcq",
+    difficulty: "easy",
+    options: [
+      "To speed up image downloads",
+      "To persist data outside the container lifecycle",
+      "To replace the container runtime",
+      "To encrypt network traffic",
+    ],
+    answer: "To persist data outside the container lifecycle",
+    explanation:
+      "Volumes keep data even when the container is recreated or deleted.",
+    concept_tag: "Docker fundamentals",
+  },
+  {
+    question_id: "demo-zzi9-2",
+    question: "Which statement best describes Kubernetes?",
+    type: "mcq",
+    difficulty: "medium",
+    options: [
+      "A tool for editing code",
+      "A container orchestration platform",
+      "A video streaming protocol",
+      "A password hashing library",
+    ],
+    answer: "A container orchestration platform",
+    explanation:
+      "Kubernetes manages and scales containerized workloads across machines.",
+    concept_tag: "Kubernetes basics",
+  },
+  {
+    question_id: "demo-zzi9-3",
+    question:
+      "Name one reason to use a CI pipeline in modern software delivery.",
+    type: "short_answer",
+    difficulty: "hard",
+    options: [],
+    answer: "automate testing and deployment",
+    explanation:
+      "CI pipelines automate testing/builds so changes can be verified quickly and reliably.",
+    concept_tag: "DevOps workflow",
+  },
+];
 
 function isEnabledSetting(value: unknown): boolean {
   return typeof value === "boolean" ? value : true;
@@ -150,6 +200,7 @@ async function handleTimeUpdate(video: HTMLVideoElement): Promise<void> {
 
   const interval = demoMode ? 30 : QUIZ_INTERVAL_SECONDS;
   const elapsed = video.currentTime - lastQuizTime;
+  const currentVideoUrl = video.currentSrc || video.src || window.location.href;
 
   // Require video to have been playing for at least 10 seconds before first quiz
   if (elapsed >= interval && video.currentTime > 10) {
@@ -157,11 +208,21 @@ async function handleTimeUpdate(video: HTMLVideoElement): Promise<void> {
     pauseAndBlur(video);
 
     try {
-      const question = await fetchQuestion(sessionId);
+      const question = demoMode
+        ? getDemoFallbackQuestion(currentVideoUrl)
+        : await fetchQuestion(sessionId);
       if (!question) throw new Error("Empty question from backend");
       renderQuizOverlay(question, video);
     } catch (err) {
       console.error("[LP] Could not load question:", err);
+
+      const fallback = getDemoFallbackQuestion(currentVideoUrl);
+      if (fallback) {
+        console.warn("[LP] Using local demo fallback question.");
+        renderQuizOverlay(fallback, video);
+        return;
+      }
+
       resumeVideo(video);
       quizActive = false;
     }
@@ -241,6 +302,35 @@ async function fetchQuestion(sid: string): Promise<Question | null> {
   const data = (await response.json()) as GenerateQuestionsResponse;
   const question: Question | undefined = data.questions?.[0];
   return question ?? null;
+}
+
+function getVideoId(urlValue: string): string {
+  try {
+    const parsed = new URL(urlValue);
+    if (parsed.hostname.includes("youtu.be")) {
+      return parsed.pathname.replace("/", "").trim();
+    }
+
+    return parsed.searchParams.get("v")?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function isDemoVideoUrl(urlValue: string): boolean {
+  return getVideoId(urlValue) === DEMO_VIDEO_ID;
+}
+
+function getDemoFallbackQuestion(urlValue: string): Question | null {
+  if (!demoMode || !isDemoVideoUrl(urlValue)) return null;
+
+  const question = DEMO_QUESTIONS[demoQuestionIndex] ?? null;
+  if (!question) return null;
+
+  demoQuestionIndex = Math.min(demoQuestionIndex + 1, DEMO_QUESTIONS.length);
+  void chrome.storage.local.set({ demoQuestionIndex });
+  console.debug("[LP] Demo question selected:", question.question_id);
+  return question;
 }
 
 // ============================================================
@@ -349,6 +439,11 @@ async function pollSessionReady(
 async function getOrCreateSession(): Promise<string | null> {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.sessionIdentity);
   const videoUrl = window.location.href;
+
+  if (isDemoVideoUrl(videoUrl) && stored.sessionVideoUrl !== videoUrl) {
+    demoQuestionIndex = 0;
+    await chrome.storage.local.set({ demoQuestionIndex: 0 });
+  }
 
   if (stored.sessionId && stored.sessionVideoUrl === videoUrl) {
     console.log("[LP] Reusing existing session:", stored.sessionId);
@@ -468,9 +563,14 @@ async function bootstrap(): Promise<void> {
     ...STORAGE_KEYS.extensionSettings,
     "deviceUserId",
     "demoMode",
+    "demoQuestionIndex",
   ]);
   extensionEnabled = isEnabledSetting(settings.extensionEnabled);
   demoMode = typeof settings.demoMode === "boolean" ? settings.demoMode : false;
+  demoQuestionIndex =
+    typeof settings.demoQuestionIndex === "number"
+      ? settings.demoQuestionIndex
+      : 0;
 
   // Generate a persistent device-scoped user ID on first run
   if (typeof settings.deviceUserId === "string" && settings.deviceUserId) {

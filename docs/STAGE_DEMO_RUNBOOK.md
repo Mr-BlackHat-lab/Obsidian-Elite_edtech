@@ -1,147 +1,64 @@
 # LearnPulse AI - Stage Demo Runbook
 
-Use this file when presenting progress and running live checks.
+Use this runbook for live demos and sanity checks.
 
-## Current Stage Status
+## 1. Current demo goals
 
-- Stage 1 (Docker setup): done
-- Stage 2 (backend models): done
-- Stage 3 (API routes): done
-- Stage 4 (CLI commands): done
-- Stage 5 (Redis live keys + TTL): done
-- Stage 6 (CLI polish, JSON export, cache helper): done
+- prove the backend is healthy
+- show the CLI can talk to the backend
+- show the frontend can read auth and performance data
+- show the extension can detect a video and ask questions
+- show demo mode fallback for the target video
 
-## 0) Start Services
+## 2. Start the stack
+
+From repo root:
 
 ```bash
 docker compose up --build -d
 docker compose ps
 ```
 
-Expected:
+Expected services:
 
-- `learnpulse_backend` up and healthy
-- `learnpulse_mongo` up and healthy
-- `learnpulse_redis` up and healthy
-- `learnpulse_celery` up
+- backend
+- MongoDB
+- Redis
+- Celery worker
 
-## 1) Backend Smoke Checks
+## 3. Backend smoke checks
 
 ```bash
 curl http://localhost:8000/health
+curl http://localhost:8000/docs
 ```
 
-Expected:
+Expected health shape:
 
 ```json
-{ "status": "ok" }
+{ "status": "ok", "service": "LearnPulse AI" }
 ```
 
-## 2) Seed Demo Data (for reliable presentation)
+Useful runtime checks:
 
-Run this from repo root:
+- GET /performance/cli_user
+- POST /submit-answer
+- POST /transcribe
 
-```powershell
-@'
-db = db.getSiblingDB('learnpulse');
+## 4. Seed demo data
 
-db.users.updateOne(
-  { user_id: 'cli_user' },
-  {
-    $set: {
-      user_id: 'cli_user',
-      username: 'cli_user',
-      email: 'cli_user@example.com',
-      total_sessions: 1,
-      overall_score: 0.67
-    }
-  },
-  { upsert: true }
-);
+For a stable presentation, keep a demo user and session available.
 
-db.sessions.updateOne(
-  { session_id: 'demo-session' },
-  {
-    $set: {
-      session_id: 'demo-session',
-      user_id: 'cli_user',
-      video_url: 'https://www.youtube.com/watch?v=demo',
-      transcript: 'Docker volumes persist data. Kubernetes orchestrates containers.',
-      concepts: ['Docker fundamentals', 'Kubernetes basics'],
-      questions: [
-        {
-          question_id: 'q1',
-          question: 'What is the purpose of a Docker volume?',
-          type: 'mcq',
-          difficulty: 'medium',
-          options: [
-            'To speed up image builds',
-            'To persist data outside container lifecycle',
-            'To expose container ports',
-            'To link multiple containers'
-          ],
-          answer: 'B',
-          explanation: 'Volumes persist data independently from container lifecycle.',
-          concept_tag: 'Docker fundamentals'
-        },
-        {
-          question_id: 'q2',
-          question: 'What does Kubernetes orchestrate?',
-          type: 'mcq',
-          difficulty: 'easy',
-          options: [
-            'Word documents',
-            'Containers and services',
-            'Physical servers only',
-            'Database backups'
-          ],
-          answer: 'B',
-          explanation: 'Kubernetes orchestrates containerized workloads and services.',
-          concept_tag: 'Kubernetes basics'
-        }
-      ],
-      attempts: [],
-      score: 0.0,
-      weak_topics: [],
-      source: 'recorded',
-      status: 'ready'
-    }
-  },
-  { upsert: true }
-);
-'@ | docker exec -i learnpulse_mongo mongosh "mongodb://localhost:27017/learnpulse" --quiet
-```
+Recommended demo identity:
 
-## 3) API Route Demo
+- user_id: cli_user
+- session_id: demo-session
 
-### Submit answer
+If the backend demo data needs to be refreshed, use the current backend setup or the CLI workflow to create it again.
 
-```powershell
-Invoke-RestMethod -Method POST "http://localhost:8000/submit-answer" `
-  -ContentType "application/json" `
-  -Body '{"session_id":"demo-session","question_id":"q1","user_answer":"B","concept_tag":"Docker fundamentals"}'
-```
+## 5. CLI demo sequence
 
-Expected shape:
-
-```json
-{
-  "correct": true,
-  "explanation": "...",
-  "updated_score": 1.0,
-  "weak_topics": []
-}
-```
-
-### Performance report
-
-```powershell
-Invoke-RestMethod -Method GET "http://localhost:8000/performance/cli_user" | ConvertTo-Json -Depth 6
-```
-
-## 4) CLI Demo
-
-Install deps once:
+Install dependencies once:
 
 ```bash
 python -m pip install -r cli/requirements.txt
@@ -150,66 +67,96 @@ python -m pip install -r cli/requirements.txt
 Run from `cli/`:
 
 ```bash
-cd cli
 python main.py process --url "https://www.youtube.com/watch?v=demo"
 python main.py test --session-id demo-session
 python main.py progress --user-id cli_user
 ```
 
-Export results JSON (Stage 6):
+Optional export:
 
 ```bash
 python main.py test --session-id demo-session --export-path demo_results.json
 ```
 
-Default output if no flag is passed:
+## 6. Frontend demo sequence
 
-- `demo-session_results.json`
+1. Start the frontend dev server.
+2. Open the app in the browser.
+3. Log in or sign up with the backend-compatible fields.
+4. Verify the dashboard and performance views load.
 
-Verify export file:
+Frontend base URL:
 
-```bash
-type demo_results.json
+```env
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
-## 5) Stage 5 Redis Demo
+## 7. Extension demo sequence
+
+1. Build the extension.
+2. Load `extension/dist` in Chrome.
+3. Open a YouTube watch page.
+4. Turn on Demo Mode.
+5. Refresh the tab if needed.
+
+### Demo video fallback
+
+The target demo video is:
+
+- https://www.youtube.com/watch?v=ZzI9JE0i6Lc
+
+In demo mode, that video should use the local 3-question fallback if backend fetch does not succeed.
+
+### What to show
+
+- video detection
+- pause and question prompt
+- answer flow
+- fallback behavior when backend data is unavailable
+
+## 8. Redis and cache checks
+
+Useful checks:
 
 ```bash
 docker exec learnpulse_redis redis-cli ping
-docker exec learnpulse_redis redis-cli RPUSH live:buffer:test123 "chunk-1" "chunk-2"
-docker exec learnpulse_redis redis-cli SADD live:asked:test123 "q-docker-1"
-docker exec learnpulse_redis redis-cli EXPIRE live:buffer:test123 7200
-docker exec learnpulse_redis redis-cli EXPIRE live:asked:test123 7200
-docker exec learnpulse_redis redis-cli TTL live:buffer:test123
-docker exec learnpulse_redis redis-cli TTL live:asked:test123
-```
-
-Expected:
-
-- `PONG` from ping
-- positive TTL values close to 7200
-
-## 6) Stage 6 Redis Video Cache Demo
-
-The `process` command now uses `vidcache:{video_url}` when `/transcribe` returns 404.
-
-```bash
 docker exec learnpulse_redis redis-cli KEYS "vidcache:*"
-docker exec learnpulse_redis redis-cli GET "vidcache:https://www.youtube.com/watch?v=demo"
 docker exec learnpulse_redis redis-cli TTL "vidcache:https://www.youtube.com/watch?v=demo"
 ```
 
-Expected:
+## 9. Presentation order
 
-- key exists after running `process`
-- value is a session id (for example `demo-session`)
-- TTL near 86400 seconds
+1. Show Docker stack status.
+2. Show backend `/health`.
+3. Run one CLI `process` flow.
+4. Run CLI `test`.
+5. Show frontend dashboard or performance page.
+6. Load the extension on YouTube.
+7. Demonstrate demo mode on `ZzI9JE0i6Lc`.
 
-## Presentation Sequence (2-3 min)
+## 10. Common issues
 
-1. Show Docker services up.
-2. Hit `/health`.
-3. Run one `/submit-answer` call.
-4. Run `python main.py test --session-id demo-session`.
-5. Run `python main.py progress --user-id cli_user`.
-6. Show Redis TTL checks for Stage 5 and video cache checks for Stage 6.
+### Extension does not respond
+
+- Reload the unpacked extension.
+- Refresh the YouTube page.
+- Confirm the popup shows the correct tab state.
+
+### Backend not being hit
+
+- Check backend logs.
+- Confirm the extension and frontend point to `http://localhost:8000`.
+
+### Demo mode stays idle
+
+- Make sure Demo Mode is enabled.
+- Use the target video.
+- Reload after rebuilding the extension.
+
+## 11. Success checklist
+
+- backend health passes
+- CLI commands complete
+- frontend loads
+- extension injects on YouTube
+- demo questions appear on the target video

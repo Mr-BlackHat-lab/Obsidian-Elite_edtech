@@ -1,189 +1,157 @@
-# CLI Backend and Frontend Integration Guide
+# CLI, Backend, and Frontend Integration Guide
 
-This guide explains how to use the LearnPulse CLI with backend APIs and frontend flows, including setup, demo mode, and secret handling.
+This guide explains how the Python CLI, FastAPI backend, and React frontend fit together in the current project.
 
-## 1. What the CLI is used for
+## 1. System roles
 
-The CLI is used to:
+- Backend: provides transcript processing, question generation, scoring, session data, auth, and performance APIs.
+- CLI: runs batch and demo workflows against the backend.
+- Frontend: uses the backend directly for auth, dashboard, and progress views.
 
-- start a video processing flow (`process`)
-- run interactive quiz attempts (`test`)
-- inspect user performance (`progress`)
-- export quiz attempt results to JSON for sharing or frontend preview
+The frontend does not call the CLI. The CLI and frontend both rely on the same backend API contract.
 
-The frontend does not execute Python CLI commands directly in the browser. The frontend should call backend APIs (`/session`, `/submit-answer`, `/performance`) that the CLI also uses.
+## 2. Local prerequisites
 
-## 2. Prerequisites
-
-- Docker and Docker Compose installed
+- Docker and Docker Compose
 - Python 3.11+
-- Running services from repo root:
+- Node.js for the frontend and extension build steps
+
+Start the backend stack from the repo root:
 
 ```bash
 docker compose up --build -d
 ```
 
-Verify backend:
+Health check:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-Expected:
+Expected shape:
 
 ```json
-{ "status": "ok" }
+{ "status": "ok", "service": "LearnPulse AI" }
 ```
 
-## 3. Install CLI dependencies
+## 3. CLI install and usage
 
-From repo root:
+Install CLI dependencies:
 
 ```bash
 python -m pip install -r cli/requirements.txt
 ```
 
-## 4. CLI commands
-
-Run these from `cli/`:
+Run commands from `cli/`:
 
 ```bash
-cd cli
 python main.py process --url "https://www.youtube.com/watch?v=demo"
 python main.py test --session-id demo-session
 python main.py progress --user-id cli_user
 ```
 
-### 4.1 Export test output to JSON
+### 3.1 Export results
 
 ```bash
 python main.py test --session-id demo-session --export-path demo_results.json
 ```
 
-If `--export-path` is omitted, output is:
+If no export path is provided, the CLI writes a default results file in its output folder.
 
-```text
-cli/results/{session_id}_results.json
-```
+## 4. Backend contract used by CLI and frontend
 
-Example:
+Main endpoints:
 
-```text
-cli/results/demo-session_results.json
-```
+- POST /transcribe
+- GET /session/{session_id}
+- POST /generate-questions
+- POST /submit-answer
+- GET /performance/{user_id}
+- POST /auth/register
+- POST /auth/login
+- GET /users/me
+- WebSocket /ws/live
 
-## 5. Backend integration contract
+## 5. CLI behavior notes
 
-CLI depends on these backend endpoints:
+- `process` sends a video URL to the backend and receives or seeds a session.
+- `test` loads questions and submits answers to the backend.
+- `progress` reads the user performance endpoint.
 
-- `POST /transcribe`
-- `GET /session/{session_id}`
-- `POST /submit-answer`
-- `GET /performance/{user_id}`
+Demo fallback behavior:
 
-### 5.1 Important fallback behavior for demo stability
-
-- If `POST /transcribe` returns 404, CLI process command falls back to Redis cache key `vidcache:{video_url}`.
-- If no cache entry exists, CLI uses `demo-session` and writes it to Redis with 24-hour TTL.
-- If `POST /submit-answer` is unavailable, CLI test command falls back to local grading so demos can continue.
+- If the backend transcript step is unavailable, the CLI can still continue with local/demo data.
+- Demo data is kept in `cli/demo_questions.json`.
+- Keep the demo bank small and stable so presentations remain predictable.
 
 ## 6. Frontend usage pattern
 
-Frontend should consume backend APIs, not call CLI directly.
+The frontend should:
 
-Recommended flow in frontend:
+1. Register or log in through the backend.
+2. Read the current user from the backend.
+3. Show performance data from GET /performance/{user_id}.
+4. Use the same backend session and answer flow as the CLI.
 
-1. Start/obtain session via backend (or existing session id).
-2. Fetch questions from `GET /session/{session_id}`.
-3. Send answers to `POST /submit-answer`.
-4. Render progress from `GET /performance/{user_id}`.
-5. Optionally read CLI-exported JSON (from local dev runs) for UI prototyping.
-
-## 7. Demo mode setup (seeded data)
-
-If backend AI/transcribe is not ready, seed a demo session and use:
-
-```bash
-python main.py process --url "https://www.youtube.com/watch?v=demo"
-python main.py test --session-id demo-session
-python main.py progress --user-id cli_user
-```
-
-This gives a stable demo flow even when upstream AI endpoints are under development.
-
-Pre-generated demo question bank:
-
-- Fallback demo questions are loaded from `cli/demo_questions.json`.
-- Edit this file to customize the exact questions/options used in demo fallback mode.
-
-## 8. Secrets and environment variables
-
-Use `.env` locally and do not commit it.
-
-- committed template: `.env.example`
-- local secret file: `.env` (gitignored)
-
-Required variables:
+Configured API base URL:
 
 ```env
-OPENROUTER_API_KEY=
-OPENROUTER_MODEL=openai/gpt-4o-mini
-MONGODB_URL=mongodb://mongo:27017/learnpulse
-REDIS_URL=redis://redis:6379/0
-YOUTUBE_API_KEY=
-WHISPER_MODEL=base
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_SITE_URL=http://localhost
-OPENROUTER_APP_NAME=LearnPulse AI
-APP_ENV=development
-DEBUG=true
-BACKEND_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
-CLI note:
+## 7. Environment variables
 
-- `BACKEND_URL` (or `CLI_BACKEND_URL`) controls where CLI commands send API requests.
-- Default remains `http://localhost:8000` when not set.
+Keep local secrets in `.env` and never commit them.
 
-Security rules:
+Suggested local values:
 
-- Never commit real API keys.
-- Never paste real keys into screenshots or demo slides.
-- Rotate keys if they were exposed.
+```env
+BACKEND_URL=http://localhost:8000
+CLI_BACKEND_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8000
+MONGODB_URL=mongodb://mongo:27017/learnpulse
+REDIS_URL=redis://redis:6379/0
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173
+```
+
+## 8. Extension and frontend connection notes
+
+- The extension uses the backend for question generation and answer submission.
+- The frontend uses the same backend routes for auth and performance.
+- If the extension is in demo mode, it can fall back to local questions for the special demo video.
+
+Demo video used for fallback:
+
+- https://www.youtube.com/watch?v=ZzI9JE0i6Lc
 
 ## 9. Troubleshooting
 
 ### Backend not reachable
 
-- symptom: connection error in CLI
-- fix:
+- Confirm Docker containers are running.
+- Re-run `docker compose up --build -d`.
 
-```bash
-docker compose ps
-docker compose up --build -d
-```
+### CLI cannot connect
 
-### Session not found
+- Check `BACKEND_URL` or `CLI_BACKEND_URL`.
+- Confirm `/health` returns ok.
 
-- symptom: `Session not found`
-- fix: run process first or use seeded `demo-session`
+### Frontend shows auth or API errors
 
-### Empty performance
+- Confirm `VITE_API_BASE_URL` points to `http://localhost:8000`.
+- Make sure the backend CORS list includes the frontend origin.
 
-- symptom: no session history in progress
-- fix: run test and submit at least one answer
+### Demo mode does not ask questions
 
-### Redis cache check
+- Reload the extension.
+- Refresh the YouTube tab.
+- Use the demo video `ZzI9JE0i6Lc`.
 
-```bash
-docker exec learnpulse_redis redis-cli KEYS "vidcache:*"
-docker exec learnpulse_redis redis-cli TTL "vidcache:https://www.youtube.com/watch?v=demo"
-```
+## 10. Handoff checklist
 
-## 10. Quick checklist before handoff
-
-- Docker services healthy
-- CLI commands run without crash
-- JSON export created successfully
-- Frontend team has backend endpoint contract
-- `.env` kept local and secret
+- Backend health check passes
+- CLI process/test/progress commands run successfully
+- Frontend can log in and load performance data
+- Extension loads from `extension/dist`
+- Demo fallback works for the target video
