@@ -292,7 +292,8 @@ async def live_stream_websocket(
         try:
             full_text = await get_full_buffer_text(session_id)
             if full_text.strip():
-                concepts = extract_concepts(full_text)
+                from services.concept_extraction import extract_concepts as _ec
+                concepts = _ec(full_text)
                 await db.sessions.update_one(
                     {"session_id": session_id},
                     {"$set": {

@@ -303,44 +303,22 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             loop.run_until_complete(_persist_cached())
             return
 
-        generation_source = "transcript"
         try:
             transcript = loop.run_until_complete(get_transcript(video_url))
         except ValueError as exc:
-            transcript = _metadata_transcript(video_url)
-            if transcript:
-                generation_source = "metadata_fallback"
-            else:
-                generation_source = "demo_fallback"
-
-            if transcript:
-                # Continue the normal question-generation pipeline using metadata-derived context.
-                pass
-            else:
-                async def _mark_failed() -> None:
-                    client = AsyncIOMotorClient(mongodb_url)
-                    try:
-                        db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
-                        db = client[db_name]
-                        await db.sessions.update_one(
-                            {"session_id": session_id},
-                            {
-                                "$set": {
-                                    "status": "ready",
-                                    "error": str(exc),
-                                    "transcript": "",
-                                    "concepts": ["docker fundamentals", "kubernetes basics", "containers"],
-                                    "questions": _demo_questions(video_url),
-                                    "generation_source": "demo_fallback",
-                                    "cache_hit": False,
-                                    "cache_source": "demo_fallback",
-                                }
-                            },
-                        )
-                    finally:
-                        client.close()
-                loop.run_until_complete(_mark_failed())
-                return
+            async def _mark_failed() -> None:
+                client = AsyncIOMotorClient(mongodb_url)
+                try:
+                    db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
+                    db = client[db_name]
+                    await db.sessions.update_one(
+                        {"session_id": session_id},
+                        {"$set": {"status": "failed", "error": str(exc)}},
+                    )
+                finally:
+                    client.close()
+            loop.run_until_complete(_mark_failed())
+            return
         chunks = chunk_transcript(transcript, chunk_size=500)
 
         use_lightweight_concepts = generation_source == "metadata_fallback"

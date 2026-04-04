@@ -4,7 +4,6 @@ motor>=3.5.1
 redis>=5.0.0
 celery>=5.4.0
 youtube-transcript-api
-yt-dlp
 openai-whisper
 # NOTE: ffmpeg binary is required by openai-whisper for audio decoding.
 # It is installed via apt-get in the Dockerfile (apt-get install -y ffmpeg).

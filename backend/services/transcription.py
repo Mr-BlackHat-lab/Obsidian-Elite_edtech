@@ -191,24 +191,7 @@ async def get_transcript(video_url: str) -> str:
     """Return transcript for a video URL — YouTube Transcript API only."""
     video_id = extract_youtube_video_id(video_url)
     if video_id:
-        try:
-            return get_youtube_captions(video_id)
-        except ValueError as caption_exc:
-            # Optional fallback: download audio and run Whisper when captions are blocked.
-            fallback_enabled = os.getenv("WHISPER_YTDLP_FALLBACK", "true").lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
-            if fallback_enabled:
-                try:
-                    transcript = await _transcribe_youtube_via_whisper(video_url)
-                    if transcript:
-                        return transcript
-                except Exception:
-                    pass
-            raise caption_exc
+        return get_youtube_captions(video_id)
     raise ValueError(
         "Could not extract transcript. Provide a YouTube URL with captions enabled."
     )
