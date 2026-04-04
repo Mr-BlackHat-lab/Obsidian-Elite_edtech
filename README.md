@@ -10,6 +10,45 @@ LearnPulse AI turns educational videos into active recall quizzes. It combines a
 - React frontend for auth, dashboard, and performance views
 - Docker Compose stack for MongoDB, Redis, Celery, and the backend
 
+## System architecture and workflow
+
+```mermaid
+flowchart LR
+  U[User watching video] --> E[Chrome Extension]
+  E -->|POST /transcribe| B[FastAPI Backend]
+  E -->|POST /generate-questions| B
+  E -->|POST /submit-answer| B
+  B -->|GET /session/{session_id}| E
+
+  C[Python CLI] -->|process/test/progress| B
+  F[React Frontend] -->|auth + dashboard + performance APIs| B
+
+  B --> M[(MongoDB)]
+  B --> R[(Redis)]
+  B --> W[Celery Worker]
+  W --> B
+```
+
+### Runtime flow
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Extension
+  participant Backend
+  participant Redis
+
+  User->>Extension: Open YouTube video
+  Extension->>Backend: POST /transcribe
+  Backend->>Redis: cache session lookup/write
+  Backend-->>Extension: session_id + concepts
+  Extension->>Backend: POST /generate-questions
+  Backend-->>Extension: question payload
+  User->>Extension: answer question
+  Extension->>Backend: POST /submit-answer
+  Backend-->>Extension: correctness + score
+```
+
 ## Current local setup
 
 ### Services

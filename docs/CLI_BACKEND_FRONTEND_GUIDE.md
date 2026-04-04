@@ -2,6 +2,19 @@
 
 This guide explains how the Python CLI, FastAPI backend, and React frontend fit together in the current project.
 
+## High-level integration graph
+
+```mermaid
+flowchart TB
+	EXT[Chrome Extension] -->|transcribe / generate / submit| API[FastAPI Backend]
+	CLI[Python CLI] -->|process / test / progress| API
+	WEB[React Frontend] -->|auth / users / performance| API
+
+	API --> DB[(MongoDB)]
+	API --> CACHE[(Redis)]
+	API --> WORKER[Celery Worker]
+```
+
 ## 1. System roles
 
 - Backend: provides transcript processing, question generation, scoring, session data, auth, and performance APIs.
