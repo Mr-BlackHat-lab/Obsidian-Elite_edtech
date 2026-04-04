@@ -84,3 +84,6 @@ Thumbs.db
 # Mongo / Redis local data
 mongo_data/
 redis_data/
+
+# CLI generated quiz result artifacts
+cli/results/*.json
