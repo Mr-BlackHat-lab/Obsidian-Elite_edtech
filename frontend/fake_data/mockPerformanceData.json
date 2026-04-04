@@ -1,0 +1,45 @@
+{
+  "currentScore": 85,
+  "history": [
+    {
+      "id": "fake-1",
+      "userId": "user-1",
+      "score": 10,
+      "correct": 1,
+      "incorrect": 0,
+      "recordedAt": "2024-03-24T10:00:00.000Z"
+    },
+    {
+      "id": "fake-2",
+      "userId": "user-1",
+      "score": 20,
+      "correct": 2,
+      "incorrect": 0,
+      "recordedAt": "2024-03-24T10:05:00.000Z"
+    },
+    {
+      "id": "fake-3",
+      "userId": "user-1",
+      "score": 15,
+      "correct": 2,
+      "incorrect": 1,
+      "recordedAt": "2024-03-24T10:10:00.000Z"
+    },
+    {
+      "id": "fake-4",
+      "userId": "user-1",
+      "score": 45,
+      "correct": 5,
+      "incorrect": 1,
+      "recordedAt": "2024-03-24T10:15:00.000Z"
+    },
+    {
+      "id": "fake-5",
+      "userId": "user-1",
+      "score": 85,
+      "correct": 9,
+      "incorrect": 1,
+      "recordedAt": "2024-03-24T10:20:00.000Z"
+    }
+  ]
+}
