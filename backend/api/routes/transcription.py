@@ -14,14 +14,14 @@ from services.concept_extraction import SessionConceptIndex, extract_concepts
 from services.difficulty_engine import get_next_difficulty
 from services.question_generation import generate_question_async, generate_questions
 from services.live_stream import (
+    check_whisper_available,
     get_full_buffer_text,
     load_asked_concepts,
     mark_concept_asked,
     save_chunk_to_buffer,
     should_trigger_quiz,
-    transcribe_chunk_with_gemini,
+    transcribe_chunk_live,
 )
-from services.transcription import transcribe_chunk_async
 from workers.celery_tasks import process_video_task
 
 router = APIRouter()
@@ -111,6 +111,7 @@ async def live_stream_websocket(
     websocket: WebSocket,
     session_id: str,
     user_id: str = "anonymous",
+    video_url: str = "",
 ):
     """Live video pipeline websocket receiving audio chunks and sending quiz prompts."""
     previous = _active_live_sessions.get(session_id)
@@ -123,7 +124,38 @@ async def live_stream_websocket(
     await websocket.accept()
     _active_live_sessions[session_id] = websocket
 
+    # Fail fast if Whisper or ffmpeg is missing
+    whisper_ok, whisper_err = check_whisper_available()
+    if not whisper_ok:
+        await websocket.send_json({"type": "ERROR", "code": "WHISPER_UNAVAILABLE", "message": whisper_err})
+        await websocket.close(code=1011, reason=whisper_err)
+        _active_live_sessions.pop(session_id, None)
+        return
+
     print(f"[WS] Live session started: {session_id} (user={user_id})")
+
+    # Upsert live session document in MongoDB on connect
+    db = websocket.app.state.db
+    await db.sessions.update_one(
+        {"session_id": session_id},
+        {
+            "$setOnInsert": {
+                "session_id": session_id,
+                "user_id": user_id,
+                "video_url": video_url,
+                "transcript": "",
+                "concepts": [],
+                "questions": [],
+                "attempts": [],
+                "score": 0.0,
+                "weak_topics": [],
+                "source": "live",
+                "created_at": datetime.datetime.utcnow(),
+            },
+            "$set": {"status": "live"},
+        },
+        upsert=True,
+    )
 
     concept_index = SessionConceptIndex()
     asked_concepts = await load_asked_concepts(session_id)
@@ -188,9 +220,7 @@ async def live_stream_websocket(
             chunk_text = ""
             chunk_started = time.time()
             for candidate in audio_candidates:
-                chunk_text = await transcribe_chunk_async(candidate)
-                if not chunk_text.strip():
-                    chunk_text = await transcribe_chunk_with_gemini(candidate)
+                chunk_text = await transcribe_chunk_live(candidate)
                 if chunk_text.strip():
                     break
             chunk_latency = time.time() - chunk_started
@@ -225,7 +255,6 @@ async def live_stream_websocket(
 
             difficulty = "medium"
             try:
-                db = websocket.app.state.db
                 session = await db.sessions.find_one({"session_id": session_id}, {"score": 1})
                 if session:
                     difficulty = get_next_difficulty(float(session.get("score", 0.0)))
@@ -259,3 +288,18 @@ async def live_stream_websocket(
     finally:
         if _active_live_sessions.get(session_id) is websocket:
             _active_live_sessions.pop(session_id, None)
+        # Persist accumulated transcript and mark session ready
+        try:
+            full_text = await get_full_buffer_text(session_id)
+            if full_text.strip():
+                concepts = extract_concepts(full_text)
+                await db.sessions.update_one(
+                    {"session_id": session_id},
+                    {"$set": {
+                        "transcript": full_text,
+                        "concepts": sorted(set(concepts)),
+                        "status": "ready",
+                    }},
+                )
+        except Exception as persist_exc:
+            print(f"[WS] Failed to persist live transcript for {session_id}: {persist_exc}")

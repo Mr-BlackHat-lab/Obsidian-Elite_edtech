@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -10,6 +11,33 @@ from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
 from api.routes.users import router as users_router
+
+
+async def _warmup_whisper() -> None:
+    """Load the Whisper model in a background thread at startup so the first
+    live audio chunk is not delayed by model initialisation (~5-15 s)."""
+    try:
+        from services.transcription import get_whisper_model
+        await asyncio.to_thread(get_whisper_model)
+        print("[startup] Whisper model loaded.")
+    except Exception as exc:
+        message = str(exc)
+
+        # If the cached Whisper model file is corrupted, remove it once and retry.
+        if "SHA256 checksum" in message:
+            model_name = os.getenv("WHISPER_MODEL", "base")
+            cache_file = f"/root/.cache/whisper/{model_name}.pt"
+            try:
+                os.remove(cache_file)
+                print(f"[startup] Removed corrupted Whisper cache: {cache_file}")
+                await asyncio.to_thread(get_whisper_model)
+                print("[startup] Whisper model loaded after cache refresh.")
+                return
+            except Exception as retry_exc:
+                message = f"{message}; retry failed: {retry_exc}"
+
+        # Non-fatal — live transcription will still work, just slower on first chunk
+        print(f"[startup] Whisper warm-up skipped: {message}")
 
 
 @asynccontextmanager
@@ -28,6 +56,9 @@ async def lifespan(app: FastAPI):
     await app.state.db.users.create_index("username", unique=True)
     await app.state.db.users.create_index("email", sparse=True)
 
+    # Warm up Whisper in background — don’t block startup if it fails
+    asyncio.create_task(_warmup_whisper())
+
     yield
 
     client.close()
@@ -35,16 +66,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LearnPulse AI", version="1.0.0", lifespan=lifespan)
 
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("JWT_SECRET", "changeme"),
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(auth_router)

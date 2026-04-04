@@ -18,6 +18,8 @@ interface PopupStats {
   streak: number;
 }
 
+type SessionStatus = "idle" | "processing" | "active" | "failed";
+
 const EMPTY_STATS: PopupStats = {
   sessionScore: 0,
   questionsAsked: 0,
@@ -35,6 +37,9 @@ const STORAGE_KEYS = [
   "weakTopics",
   "streak",
   "extensionEnabled",
+  "deviceUserId",
+  "demoMode",
+  "sessionStatus",
 ] as const;
 
 type PopupStorageSnapshot = Partial<{
@@ -45,6 +50,9 @@ type PopupStorageSnapshot = Partial<{
   weakTopics: string[];
   streak: number;
   extensionEnabled: boolean;
+  deviceUserId: string;
+  demoMode: boolean;
+  sessionStatus: string;
 }>;
 
 interface SiteInfo {
@@ -131,7 +139,10 @@ function readBoolean(value: unknown, fallback: boolean): boolean {
 
 function Popup() {
   const [active, setActive] = useState<boolean>(false);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
   const [extensionEnabled, setExtensionEnabled] = useState<boolean>(true);
+  const [demoMode, setDemoMode] = useState<boolean>(false);
+  const [deviceUserId, setDeviceUserId] = useState<string>("");
   const [stats, setStats] = useState<PopupStats>(EMPTY_STATS);
   const [tabDebug, setTabDebug] = useState<TabDebugState>(DEFAULT_TAB_DEBUG);
   const [loaded, setLoaded] = useState<boolean>(false);
@@ -139,8 +150,18 @@ function Popup() {
   // ── Load initial state from chrome.storage.local ──────────
   const loadStats = useCallback(() => {
     chrome.storage.local.get([...STORAGE_KEYS], (data: PopupStorageSnapshot) => {
-      setActive(!!data.sessionId);
+      const hasSession = !!data.sessionId;
+      setActive(hasSession);
+      const raw = data.sessionStatus ?? "";
+      setSessionStatus(
+        !hasSession ? "idle"
+        : raw === "processing" ? "processing"
+        : raw === "failed" ? "failed"
+        : "active"
+      );
       setExtensionEnabled(readBoolean(data.extensionEnabled, true));
+      setDemoMode(readBoolean(data.demoMode, false));
+      setDeviceUserId(typeof data.deviceUserId === "string" ? data.deviceUserId : "");
       setStats({
         sessionScore: readNumber(data.sessionScore),
         questionsAsked: readNumber(data.questionsAsked),
@@ -179,10 +200,25 @@ function Popup() {
 
       if (changes.sessionId) {
         setActive(!!changes.sessionId.newValue);
+        if (!changes.sessionId.newValue) setSessionStatus("idle");
+      }
+
+      if (changes.sessionStatus) {
+        const raw = changes.sessionStatus.newValue as string ?? "";
+        setSessionStatus(
+          raw === "processing" ? "processing"
+          : raw === "failed" ? "failed"
+          : raw === "ready" ? "active"
+          : "active"
+        );
       }
 
       if (changes.extensionEnabled) {
         setExtensionEnabled(readBoolean(changes.extensionEnabled.newValue, true));
+      }
+
+      if (changes.demoMode) {
+        setDemoMode(readBoolean(changes.demoMode.newValue, false));
       }
     };
 
@@ -196,6 +232,13 @@ function Popup() {
       setExtensionEnabled(nextEnabled);
     });
   }, [extensionEnabled]);
+
+  const toggleDemoMode = useCallback(() => {
+    const next = !demoMode;
+    chrome.storage.local.set({ demoMode: next }, () => {
+      setDemoMode(next);
+    });
+  }, [demoMode]);
 
   const refreshTabDebug = useCallback(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -334,6 +377,17 @@ function Popup() {
         </button>
       </div>
 
+      <div className="lp-extension-toggle-row">
+        <span className="lp-extension-toggle-label">Demo mode (30s)</span>
+        <button
+          type="button"
+          onClick={toggleDemoMode}
+          className={`lp-extension-toggle ${demoMode ? "is-on" : "is-off"}`}
+        >
+          {demoMode ? "ON" : "OFF"}
+        </button>
+      </div>
+
       <div className="lp-tab-debug">
         <div className="lp-tab-debug-row">
           <span className="lp-tab-debug-key">Website</span>
@@ -367,6 +421,20 @@ function Popup() {
             LearnPulse is disabled. Turn the extension ON to resume quiz checkpoints.
           </p>
         </div>
+      ) : sessionStatus === "processing" ? (
+        <div className="lp-popup-empty">
+          <div className="lp-popup-empty-icon">⏳</div>
+          <p className="lp-popup-empty-text">
+            Fetching transcript and generating questions… this takes a few seconds.
+          </p>
+        </div>
+      ) : sessionStatus === "failed" ? (
+        <div className="lp-popup-empty">
+          <div className="lp-popup-empty-icon">⚠️</div>
+          <p className="lp-popup-empty-text">
+            No captions found for this video. Try a video with subtitles enabled.
+          </p>
+        </div>
       ) : active ? (
         <Dashboard stats={stats} />
       ) : (
@@ -380,12 +448,13 @@ function Popup() {
 
       {/* ── Footer ── */}
       <div className="lp-popup-footer">
-        <span className="lp-popup-version">LearnPulse v1.0</span>
+        <span className="lp-popup-version">LearnPulse v1.0{deviceUserId ? ` · ${deviceUserId}` : ""}</span>
         {active && extensionEnabled && (
           <button
             onClick={() => {
               chrome.storage.local.clear(() => {
                 setActive(false);
+                setSessionStatus("idle");
                 setStats(EMPTY_STATS);
                 setExtensionEnabled(true);
               });

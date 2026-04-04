@@ -8,46 +8,68 @@ import click
 import requests
 from rich.console import Console
 from rich.panel import Panel
+from config import API_BASE, check_backend_health
 
-API_BASE = "http://localhost:8000"
 console = Console()
+DEFAULT_RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+DEMO_QUESTIONS_PATH = Path(__file__).resolve().parent.parent / "demo_questions.json"
+
+
+def _default_demo_questions() -> list[dict]:
+    return [
+        {
+            "question_id": "q1",
+            "question": "What is a Docker volume?",
+            "difficulty": "medium",
+            "concept_tag": "Docker",
+            "type": "mcq",
+            "options": [
+                "A way to make containers faster",
+                "A persistent data store outside the container lifecycle",
+                "A networking protocol",
+                "A container image format",
+            ],
+            "answer": "B",
+            "explanation": "Volumes persist data outside the container lifecycle.",
+        },
+        {
+            "question_id": "q2",
+            "question": "What does Kubernetes orchestrate?",
+            "difficulty": "easy",
+            "concept_tag": "Kubernetes",
+            "type": "mcq",
+            "options": [
+                "Containers and services",
+                "Spreadsheets",
+                "Audio files",
+                "Kernel modules",
+            ],
+            "answer": "A",
+            "explanation": "Kubernetes orchestrates containerized workloads and services.",
+        },
+    ]
+
+
+def _load_demo_questions() -> list[dict]:
+    if not DEMO_QUESTIONS_PATH.exists():
+        return _default_demo_questions()
+
+    try:
+        content = json.loads(DEMO_QUESTIONS_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return _default_demo_questions()
+
+    if not isinstance(content, list) or not content:
+        return _default_demo_questions()
+
+    return content
 
 
 def _mock_session(session_id: str) -> dict:
     return {
         "session_id": session_id,
-        "questions": [
-            {
-                "question_id": "q1",
-                "question": "What is a Docker volume?",
-                "difficulty": "medium",
-                "concept_tag": "Docker",
-                "type": "mcq",
-                "options": [
-                    "A way to make containers faster",
-                    "A persistent data store outside the container lifecycle",
-                    "A networking protocol",
-                    "A container image format",
-                ],
-                "answer": "B",
-                "explanation": "Volumes persist data outside the container lifecycle.",
-            },
-            {
-                "question_id": "q2",
-                "question": "What does Kubernetes orchestrate?",
-                "difficulty": "easy",
-                "concept_tag": "Kubernetes",
-                "type": "mcq",
-                "options": [
-                    "Containers and services",
-                    "Spreadsheets",
-                    "Audio files",
-                    "Kernel modules",
-                ],
-                "answer": "A",
-                "explanation": "Kubernetes orchestrates containerized workloads and services.",
-            },
-        ],
+        "user_id": "anonymous",
+        "questions": _load_demo_questions(),
     }
 
 
@@ -122,13 +144,25 @@ def _render_question(question: dict, index: int, total: int) -> None:
     "--export-path",
     required=False,
     type=click.Path(dir_okay=False, writable=True, path_type=Path),
-    help="Optional output path for JSON results. Defaults to {session_id}_results.json.",
+    help="Optional output path for JSON results. Defaults to cli/results/{session_id}_results.json.",
 )
 def test_command(session_id: str, export_path: Path | None) -> None:
     """Run an interactive test for a session."""
     try:
+        check_backend_health(console)
         session = _fetch_session(session_id)
         questions = session.get("questions", [])
+        resolved_session_id = str(session.get("session_id", session_id))
+        resolved_user_id = str(session.get("user_id", "unknown"))
+
+        console.print(
+            Panel(
+                f"Session: {resolved_session_id}\nUser: {resolved_user_id}",
+                title="Active Quiz Context",
+                border_style="bright_blue",
+            )
+        )
+
         if not questions:
             console.print("[yellow]No questions available for this session.[/yellow]")
             return
@@ -169,13 +203,14 @@ def test_command(session_id: str, export_path: Path | None) -> None:
                 click.pause("Press ENTER for next question")
 
         summary = {
-            "session_id": session_id,
+            "session_id": resolved_session_id,
+            "user_id": resolved_user_id,
             "submitted_at": datetime.now(timezone.utc).isoformat(),
             "total_questions": len(questions),
             "correct_answers": correct_count,
             "accuracy": round((correct_count / len(questions)) * 100, 2),
         }
-        output_path = export_path or Path(f"{session_id}_results.json")
+        output_path = export_path or (DEFAULT_RESULTS_DIR / f"{resolved_session_id}_results.json")
         _export_results(output_path, {"summary": summary, "results": results})
 
         console.print(f"[bold cyan]Results exported:[/bold cyan] {output_path}")
@@ -183,7 +218,7 @@ def test_command(session_id: str, export_path: Path | None) -> None:
 
     except requests.exceptions.ConnectionError:
         console.print(
-            "[red]Could not connect to FastAPI at http://localhost:8000.[/red] "
+            f"[red]Could not connect to FastAPI at {API_BASE}.[/red] "
             "Start backend services and try again."
         )
     except requests.exceptions.Timeout:

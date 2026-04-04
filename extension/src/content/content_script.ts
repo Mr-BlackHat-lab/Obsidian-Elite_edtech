@@ -9,8 +9,7 @@
 import type { Question, AnswerResult, ExtensionMessage } from "../shared/types";
 
 const BACKEND_URL = "http://localhost:8000";
-const QUIZ_INTERVAL_SECONDS = 300;  // 5 minutes in production
-const DEMO_MODE = true;             // ← SET TO FALSE FOR PRODUCTION (uses 5-min timer)
+const QUIZ_INTERVAL_SECONDS = 300;
 
 const STORAGE_KEYS = {
   transcript: ["transcript"],
@@ -35,6 +34,13 @@ interface GenerateQuestionsResponse {
 
 interface TranscribeResponse {
   session_id: string;
+  status: string;
+}
+
+interface SessionResponse {
+  status: string;
+  transcript?: string;
+  error?: string;
 }
 
 let lastQuizTime = 0;
@@ -43,6 +49,8 @@ let quizActive = false;
 let videoRef: HTMLVideoElement | null = null;
 let extensionEnabled = true;
 let initialized = false;
+let demoMode = false;
+let deviceUserId = "";
 
 function isEnabledSetting(value: unknown): boolean {
   return typeof value === "boolean" ? value : true;
@@ -120,7 +128,7 @@ function waitForVideo(): Promise<HTMLVideoElement | null> {
 async function handleTimeUpdate(video: HTMLVideoElement): Promise<void> {
   if (!extensionEnabled || quizActive || !sessionId) return;
 
-  const interval = DEMO_MODE ? 30 : QUIZ_INTERVAL_SECONDS;
+  const interval = demoMode ? 30 : QUIZ_INTERVAL_SECONDS;
   const elapsed = video.currentTime - lastQuizTime;
 
   // Require video to have been playing for at least 10 seconds before first quiz
@@ -188,9 +196,11 @@ function blockNavigationKeys(e: KeyboardEvent): void {
 // 5. FETCH QUESTION FROM BACKEND
 // ============================================================
 async function fetchQuestion(sid: string): Promise<Question | null> {
-  const stored = await chrome.storage.local.get(STORAGE_KEYS.transcript);
+  const stored = await chrome.storage.local.get(["transcript"]);
   const transcriptChunk: string =
-    stored.transcript ?? "Educational video content about programming and technology.";
+    typeof stored.transcript === "string" && stored.transcript
+      ? stored.transcript
+      : "Educational video content about programming and technology.";
 
   const response = await fetch(`${BACKEND_URL}/generate-questions`, {
     method: "POST",
@@ -274,30 +284,53 @@ async function onAnswerSubmitted(result: AnswerResult, video: HTMLVideoElement):
 // ============================================================
 // 8. SESSION MANAGEMENT — Create or reuse a backend session
 // ============================================================
+async function pollSessionReady(sid: string, maxWaitMs = 60_000): Promise<string | null> {
+  const POLL_MS = 3_000;
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_MS));
+    try {
+      const res = await fetch(`${BACKEND_URL}/session/${sid}`);
+      if (!res.ok) continue;
+      const data = (await res.json()) as SessionResponse;
+
+      if (data.status === "failed") {
+        console.warn("[LP] Session failed:", data.error ?? "no captions available");
+        return null;
+      }
+      if (data.status === "ready") {
+        if (data.transcript) {
+          await chrome.storage.local.set({ transcript: data.transcript });
+        }
+        return sid;
+      }
+    } catch { /* network hiccup, keep polling */ }
+  }
+  console.warn("[LP] Session did not become ready within timeout.");
+  return null;
+}
+
 async function getOrCreateSession(): Promise<string | null> {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.sessionIdentity);
   const videoUrl = window.location.href;
 
-  // Reuse existing session if navigating back to the same video
   if (stored.sessionId && stored.sessionVideoUrl === videoUrl) {
     console.log("[LP] Reusing existing session:", stored.sessionId);
     return stored.sessionId as string;
   }
 
-  // New video — create a fresh session
   try {
     const response = await fetch(`${BACKEND_URL}/transcribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ video_url: videoUrl, user_id: "user_001" }),
+      body: JSON.stringify({ video_url: videoUrl, user_id: deviceUserId }),
     });
 
     if (!response.ok) throw new Error(`/transcribe failed: ${response.status}`);
 
     const data = (await response.json()) as TranscribeResponse;
-    if (!data.session_id) {
-      throw new Error("/transcribe response missing session_id");
-    }
+    if (!data.session_id) throw new Error("/transcribe response missing session_id");
 
     const sid: string = data.session_id;
 
@@ -309,9 +342,19 @@ async function getOrCreateSession(): Promise<string | null> {
       correctCount: 0,
       weakTopics: [],
       streak: 0,
+      sessionStatus: "processing",
     });
 
-    return sid;
+    // If already ready (cache hit), skip polling
+    if (data.status === "ready") {
+      await chrome.storage.local.set({ sessionStatus: "ready" });
+      return sid;
+    }
+
+    // Wait for Celery to finish processing
+    const readySid = await pollSessionReady(sid);
+    await chrome.storage.local.set({ sessionStatus: readySid ? "ready" : "failed" });
+    return readySid;
   } catch (err) {
     console.error("[LP] Session creation error:", err);
     return null;
@@ -375,8 +418,21 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 async function bootstrap(): Promise<void> {
   console.debug("[LP][Debug] Content script injected on:", window.location.href);
 
-  const settings = await chrome.storage.local.get(STORAGE_KEYS.extensionSettings);
+  const settings = await chrome.storage.local.get([
+    ...STORAGE_KEYS.extensionSettings,
+    "deviceUserId",
+    "demoMode",
+  ]);
   extensionEnabled = isEnabledSetting(settings.extensionEnabled);
+  demoMode = typeof settings.demoMode === "boolean" ? settings.demoMode : false;
+
+  // Generate a persistent device-scoped user ID on first run
+  if (typeof settings.deviceUserId === "string" && settings.deviceUserId) {
+    deviceUserId = settings.deviceUserId;
+  } else {
+    deviceUserId = `device_${Math.random().toString(36).slice(2, 10)}`;
+    await chrome.storage.local.set({ deviceUserId });
+  }
 
   if (extensionEnabled) {
     await init();
@@ -385,7 +441,13 @@ async function bootstrap(): Promise<void> {
   }
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local" || !changes.extensionEnabled) return;
+    if (areaName !== "local") return;
+
+    if (changes.demoMode) {
+      demoMode = typeof changes.demoMode.newValue === "boolean" ? changes.demoMode.newValue : false;
+    }
+
+    if (!changes.extensionEnabled) return;
 
     extensionEnabled = isEnabledSetting(changes.extensionEnabled.newValue);
 
