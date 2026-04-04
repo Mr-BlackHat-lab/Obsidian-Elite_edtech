@@ -42,12 +42,14 @@ Verify: http://localhost:8000/health
 ## Tech Stack
 
 ### Backend
+
 - FastAPI (Python)
 - Hugging Face Inference API (Mistral-7B)
 - MongoDB (optional, uses in-memory storage)
 - YouTube Transcript API
 
 ### Extension
+
 - TypeScript
 - React (quiz overlay)
 - Chrome Extension API (Manifest V3)
@@ -92,6 +94,7 @@ Obsidian-Elite_edtech/
 ### Backend Setup
 
 Goal: `Video -> Questions`
+
 <div align="center">
 
 <img src="https://img.shields.io/badge/-%F0%9F%A7%A0%20LearnPulse%20AI-1976D2?style=for-the-badge&labelColor=0D47A1" height="50"/>
@@ -124,6 +127,7 @@ Goal: `Video -> Questions`
 <td width="50%">
 
 **Quiz Overlay on YouTube**
+
 ```
 ╔══════════════════════════════════════╗
 ║  ▶  Intro to Machine Learning 08:42  ║
@@ -146,6 +150,7 @@ Goal: `Video -> Questions`
 <td width="50%">
 
 **Performance Dashboard**
+
 ```
 ╔═════════════════════════════════════╗
 ║  📊  Performance Report            ║
@@ -176,23 +181,23 @@ Goal: `Video -> Questions`
 <tr>
 <td width="50%">
 
-| Feature | Status |
-|---------|--------|
+| Feature                       | Status  |
+| ----------------------------- | ------- |
 | 🎥 YouTube URL → instant quiz | ✅ Live |
 | 🔴 Live stream real-time quiz | ✅ Live |
 | 🧠 Google Gemini AI questions | ✅ Live |
-| 📊 Performance & analytics | ✅ Live |
+| 📊 Performance & analytics    | ✅ Live |
 | ⚡ Adaptive difficulty engine | ✅ Live |
 
 </td>
 <td width="50%">
 
-| Feature | Status |
-|---------|--------|
-| 🔐 JWT login / signup | ✅ Live |
-| 🐙 GitHub OAuth | ✅ Live |
-| 👤 Full user CRUD | ✅ Live |
-| 🔄 Celery async workers | ✅ Live |
+| Feature                     | Status  |
+| --------------------------- | ------- |
+| 🔐 JWT login / signup       | ✅ Live |
+| 🐙 GitHub OAuth             | ✅ Live |
+| 👤 Full user CRUD           | ✅ Live |
+| 🔄 Celery async workers     | ✅ Live |
 | 🌐 Chrome extension overlay | ✅ Live |
 
 </td>
@@ -225,7 +230,7 @@ Goal: `Video -> Questions`
 │  │  POST /login      │  │  PUT    /me        │  │  POST /gen-q   │  │
 │  │  GET  /github     │  │  DELETE /me        │  │  POST /submit  │  │
 │  │  GET  /callback   │  │  GET    /{id}      │  │  GET  /session │  │
-│  │                   │  │  GET    /          │  │  GET  /perf    │  │ 
+│  │                   │  │  GET    /          │  │  GET  /perf    │  │
 │  │  JWT + bcrypt     │  │  JWT Protected     │  │  WS   /ws/live │  │
 │  │  GitHub OAuth     │  │  Pagination        │  │                │  │
 │  └───────────────────┘  └───────────────────┘  └─────────────────┘  │
@@ -398,17 +403,18 @@ Goal: `Video -> Questions`
 
 ### 🔐 Auth — `backend/api/routes/auth.py`
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/auth/register` | ❌ | Create account → returns JWT |
-| `POST` | `/auth/login` | ❌ | Login → returns JWT |
-| `GET` | `/auth/github` | ❌ | Redirect to GitHub login |
-| `GET` | `/auth/github/callback` | ❌ | GitHub callback → returns JWT |
+| Method | Endpoint                | Auth | Description                   |
+| ------ | ----------------------- | ---- | ----------------------------- |
+| `POST` | `/auth/register`        | ❌   | Create account → returns JWT  |
+| `POST` | `/auth/login`           | ❌   | Login → returns JWT           |
+| `GET`  | `/auth/github`          | ❌   | Redirect to GitHub login      |
+| `GET`  | `/auth/github/callback` | ❌   | GitHub callback → returns JWT |
 
 <details>
 <summary>📋 Request / Response examples</summary>
 
 **Register**
+
 ```json
 // POST /auth/register
 { "username": "john_doe", "email": "john@example.com", "password": "secret" }
@@ -418,6 +424,7 @@ Goal: `Video -> Questions`
 ```
 
 **Login**
+
 ```json
 // POST /auth/login
 { "username": "john_doe", "password": "secret" }
@@ -425,19 +432,20 @@ Goal: `Video -> Questions`
 // Response
 { "user_id": "abc123xyz", "username": "john_doe", "token": "eyJ..." }
 ```
+
 </details>
 
 ---
 
 ### 👤 Users CRUD — `backend/api/routes/users.py`
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/users/me` | ✅ JWT | Get own profile |
-| `PUT` | `/users/me` | ✅ JWT | Update username / email / password |
-| `DELETE` | `/users/me` | ✅ JWT | Delete own account |
-| `GET` | `/users/{user_id}` | ✅ JWT | Get any user by ID |
-| `GET` | `/users/?skip=0&limit=20` | ✅ JWT | List all users paginated |
+| Method   | Endpoint                  | Auth   | Description                        |
+| -------- | ------------------------- | ------ | ---------------------------------- |
+| `GET`    | `/users/me`               | ✅ JWT | Get own profile                    |
+| `PUT`    | `/users/me`               | ✅ JWT | Update username / email / password |
+| `DELETE` | `/users/me`               | ✅ JWT | Delete own account                 |
+| `GET`    | `/users/{user_id}`        | ✅ JWT | Get any user by ID                 |
+| `GET`    | `/users/?skip=0&limit=20` | ✅ JWT | List all users paginated           |
 
 <details>
 <summary>📋 Request / Response examples</summary>
@@ -449,25 +457,27 @@ Goal: `Video -> Questions`
 // DELETE /users/me
 { "message": "Account deleted successfully", "user_id": "abc123xyz" }
 ```
+
 </details>
 
 ---
 
 ### 🎓 Learning — `backend/api/routes/transcription.py` + `performance.py`
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/transcribe` | ❌ | Submit YouTube URL → async processing |
-| `POST` | `/generate-questions` | ❌ | Generate questions from transcript |
-| `POST` | `/submit-answer` | ❌ | Submit answer → get score update |
-| `GET` | `/session/{session_id}` | ❌ | Get session details |
-| `GET` | `/performance/{user_id}` | ❌ | Get full performance report |
-| `WS` | `/ws/live` | ❌ | Live stream quiz WebSocket |
+| Method | Endpoint                 | Auth | Description                           |
+| ------ | ------------------------ | ---- | ------------------------------------- |
+| `POST` | `/transcribe`            | ❌   | Submit YouTube URL → async processing |
+| `POST` | `/generate-questions`    | ❌   | Generate questions from transcript    |
+| `POST` | `/submit-answer`         | ❌   | Submit answer → get score update      |
+| `GET`  | `/session/{session_id}`  | ❌   | Get session details                   |
+| `GET`  | `/performance/{user_id}` | ❌   | Get full performance report           |
+| `WS`   | `/ws/live`               | ❌   | Live stream quiz WebSocket            |
 
 <details>
 <summary>📋 Request / Response examples</summary>
 
 **Transcribe**
+
 ```json
 // POST /transcribe
 { "video_url": "https://youtube.com/watch?v=abc", "user_id": "user_001" }
@@ -477,6 +487,7 @@ Goal: `Video -> Questions`
 ```
 
 **Submit Answer**
+
 ```json
 // POST /submit-answer
 { "session_id": "a1b2c3", "question_id": "q_001", "user_answer": "B", "concept_tag": "neural_networks" }
@@ -486,6 +497,7 @@ Goal: `Video -> Questions`
 ```
 
 **Performance**
+
 ```json
 // GET /performance/user_001
 {
@@ -494,12 +506,13 @@ Goal: `Video -> Questions`
   "total_questions": 40,
   "topic_breakdown": {
     "neural_networks": { "correct": 9, "total": 10, "accuracy": 0.9 },
-    "optimization":    { "correct": 3, "total": 6,  "accuracy": 0.5 }
+    "optimization": { "correct": 3, "total": 6, "accuracy": 0.5 }
   },
   "weak_topics": ["optimization"],
   "feedback": "Revise optimization before next session."
 }
 ```
+
 </details>
 
 ---
@@ -651,6 +664,42 @@ cd extension && npm install && npm run build
 3. Click **Load unpacked** → select `extension/` folder
 4. Open any YouTube video → quiz overlay appears automatically
 
+### 7 — Integration Setup (backend + CLI + extension + frontend)
+
+Use these local values for a working end-to-end setup:
+
+```env
+# Backend
+MONGODB_URL=mongodb://mongo:27017/learnpulse
+REDIS_URL=redis://redis:6379/0
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173
+
+# CLI
+BACKEND_URL=http://localhost:8000
+
+# Frontend
+VITE_API_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8000
+
+# Extension
+backend host permission: http://localhost:8000/* and http://127.0.0.1:8000/*
+```
+
+Recommended startup order:
+
+1. `docker compose up --build -d`
+2. Verify backend: `http://localhost:8000/health`
+3. Run CLI commands from `cli/`
+4. Build/load extension from `extension/dist/`
+5. Run frontend with `npm run dev` inside `frontend/front/`
+
+Frontend endpoints now target the FastAPI backend directly:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /users/me`
+- `GET /performance/{user_id}`
+
 ---
 
 ## 🌐 GitHub OAuth Setup
@@ -665,8 +714,6 @@ cd extension && npm install && npm run build
 ---
 
 ## 🤝 Contributing
-
-
 
 ```bash
 cd extension
@@ -693,12 +740,14 @@ Built files go to `extension/dist/`
 ## Unique Features
 
 ### Unique Questions
+
 - Tracks asked concepts per session
 - AI avoids duplicate topics
 - Each quiz covers new material
 - Progressive learning experience
 
 ### Clickable Concepts
+
 - Click concept tag → Google search
 - Magnifying glass icon (🔍)
 - Opens in new tab
@@ -707,11 +756,13 @@ Built files go to `extension/dist/`
 ## Configuration
 
 ### Demo Mode
+
 - 30-second intervals
 - For testing
 - Toggle in popup
 
 ### Normal Mode
+
 - 5-minute intervals
 - For real learning
 - Default mode
@@ -719,34 +770,39 @@ Built files go to `extension/dist/`
 ## Requirements
 
 ### Backend
+
 - Python 3.8+
 - Internet connection (Hugging Face API)
 - MongoDB (optional)
 
 ### Extension
+
 - Chrome browser
 - Videos with captions/subtitles
 
 ## Troubleshooting
 
 ### Backend won't start
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### Extension won't load
+
 - Load `extension/dist` folder (not `extension/src`)
 - Check all files exist in dist/
 
 ### No quiz appears
+
 - Check Demo Mode is enabled
 - Video must have captions
 - Check console for errors (F12)
 
 ### Questions repeat
+
 - Each session tracks unique concepts
 - Restart backend to reset tracking
-
 
 ⭐ Star this repo if you find it useful!
 

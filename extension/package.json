@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "LearnPulse AI — Active recall browser extension",
   "scripts": {
-    "build": "webpack",
+    "build": "webpack && node copy-static-assets.js",
     "dev": "webpack --watch"
   },
   "dependencies": {

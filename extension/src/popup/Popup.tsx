@@ -75,6 +75,8 @@ interface TabDebugState {
   debugNote: string;
 }
 
+const CONTENT_SCRIPT_FILE = "content_script.js";
+
 const DEFAULT_TAB_DEBUG: TabDebugState = {
   siteLabel: "Checking tab...",
   supportedPage: false,
@@ -93,7 +95,7 @@ function classifySite(urlValue: string | undefined): SiteInfo {
     const host = parsed.hostname;
     const path = parsed.pathname;
 
-    if (host === "www.youtube.com" && path.startsWith("/watch")) {
+    if (host.endsWith("youtube.com") && path.startsWith("/watch")) {
       return { siteLabel: "YouTube", supportedPage: true };
     }
 
@@ -137,6 +139,25 @@ function readBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function injectContentScript(tabId: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.scripting.executeScript(
+      {
+        target: { tabId },
+        files: [CONTENT_SCRIPT_FILE],
+      },
+      () => {
+        const runtimeError = chrome.runtime.lastError;
+        if (runtimeError) {
+          reject(new Error(runtimeError.message));
+          return;
+        }
+        resolve();
+      }
+    );
+  });
+}
+
 function Popup() {
   const [active, setActive] = useState<boolean>(false);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
@@ -155,9 +176,9 @@ function Popup() {
       const raw = data.sessionStatus ?? "";
       setSessionStatus(
         !hasSession ? "idle"
-        : raw === "processing" ? "processing"
-        : raw === "failed" ? "failed"
-        : "active"
+          : raw === "processing" ? "processing"
+            : raw === "failed" ? "failed"
+              : "active"
       );
       setExtensionEnabled(readBoolean(data.extensionEnabled, true));
       setDemoMode(readBoolean(data.demoMode, false));
@@ -207,9 +228,9 @@ function Popup() {
         const raw = changes.sessionStatus.newValue as string ?? "";
         setSessionStatus(
           raw === "processing" ? "processing"
-          : raw === "failed" ? "failed"
-          : raw === "ready" ? "active"
-          : "active"
+            : raw === "failed" ? "failed"
+              : raw === "ready" ? "active"
+                : "active"
         );
       }
 
@@ -244,8 +265,9 @@ function Popup() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       const siteInfo = classifySite(tab?.url);
+      const tabId = typeof tab?.id === "number" ? tab.id : null;
 
-      if (!tab?.id) {
+      if (!tabId) {
         setTabDebug({
           siteLabel: siteInfo.siteLabel,
           supportedPage: siteInfo.supportedPage,
@@ -270,20 +292,61 @@ function Popup() {
       const message: ExtensionMessage = { type: "GET_VIDEO_STATUS" };
 
       chrome.tabs.sendMessage(
-        tab.id,
+        tabId,
         message,
         (response: TabVideoStatusResponse | undefined) => {
           const runtimeError = chrome.runtime.lastError;
 
           if (runtimeError || !response) {
             console.debug("[LP Popup][Debug] Content script not detected:", runtimeError?.message);
-            setTabDebug({
-              siteLabel: siteInfo.siteLabel,
-              supportedPage: true,
-              extensionDetected: false,
-              videoLabel: "No content response",
-              debugNote: "Extension did not detect this page yet",
-            });
+
+            void injectContentScript(tabId)
+              .then(() => {
+                window.setTimeout(() => {
+                  chrome.tabs.sendMessage(
+                    tabId,
+                    message,
+                    (retryResponse: TabVideoStatusResponse | undefined) => {
+                      const retryError = chrome.runtime.lastError;
+                      if (retryError || !retryResponse) {
+                        setTabDebug({
+                          siteLabel: siteInfo.siteLabel,
+                          supportedPage: true,
+                          extensionDetected: false,
+                          videoLabel: "No content response",
+                          debugNote: "Injected, but page still not responding",
+                        });
+                        return;
+                      }
+
+                      const videoLabel = retryResponse.videoFound
+                        ? retryResponse.videoPlaying
+                          ? "Video playing"
+                          : "Video paused"
+                        : "No video found";
+
+                      setTabDebug({
+                        siteLabel: siteInfo.siteLabel,
+                        supportedPage: true,
+                        extensionDetected: retryResponse.extensionDetected,
+                        videoLabel,
+                        debugNote: retryResponse.extensionEnabled
+                          ? "Content script injected successfully"
+                          : "Extension toggle is OFF on this page",
+                      });
+                    }
+                  );
+                }, 300);
+              })
+              .catch((err) => {
+                setTabDebug({
+                  siteLabel: siteInfo.siteLabel,
+                  supportedPage: true,
+                  extensionDetected: false,
+                  videoLabel: "Injection failed",
+                  debugNote: err instanceof Error ? err.message : "Could not inject content script",
+                });
+              });
             return;
           }
 

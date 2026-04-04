@@ -51,6 +51,8 @@ let extensionEnabled = true;
 let initialized = false;
 let demoMode = false;
 let deviceUserId = "";
+let checkpointTimer: ReturnType<typeof setInterval> | null = null;
+let initRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isEnabledSetting(value: unknown): boolean {
   return typeof value === "boolean" ? value : true;
@@ -69,11 +71,21 @@ interface VideoStatusResponse {
 async function init(): Promise<void> {
   if (initialized || !extensionEnabled) return;
 
+  if (initRetryTimer) {
+    clearTimeout(initRetryTimer);
+    initRetryTimer = null;
+  }
+
   console.log("[LP] Initializing LearnPulse AI...");
 
   const video = await waitForVideo();
   if (!video) {
     console.warn("[LP] No video found within timeout, giving up.");
+    initRetryTimer = setTimeout(() => {
+      if (!initialized && extensionEnabled) {
+        void init();
+      }
+    }, 10_000);
     return;
   }
 
@@ -89,7 +101,15 @@ async function init(): Promise<void> {
   console.log("[LP] Session ready:", sessionId);
 
   // Start monitoring playback
-  video.addEventListener("timeupdate", () => handleTimeUpdate(video), { passive: true });
+  video.addEventListener("timeupdate", () => handleTimeUpdate(video), {
+    passive: true,
+  });
+  if (checkpointTimer) {
+    clearInterval(checkpointTimer);
+  }
+  checkpointTimer = setInterval(() => {
+    void handleTimeUpdate(video);
+  }, 1_000);
 
   // Notify extension badge
   updateBadge("ACTIVE");
@@ -186,7 +206,10 @@ function blockNavigationKeys(e: KeyboardEvent): void {
   // Allow number keys 1–4 for MCQ selection (handled in overlay)
   if (e.key >= "1" && e.key <= "4") return;
 
-  if (BLOCKED_NAVIGATION_KEYS.has(e.code) || BLOCKED_NAVIGATION_KEYS.has(e.key)) {
+  if (
+    BLOCKED_NAVIGATION_KEYS.has(e.code) ||
+    BLOCKED_NAVIGATION_KEYS.has(e.key)
+  ) {
     e.preventDefault();
     e.stopImmediatePropagation();
   }
@@ -255,11 +278,15 @@ function renderQuizOverlay(question: Question, video: HTMLVideoElement): void {
 // ============================================================
 // 7. HANDLE ANSWER SUBMISSION — Update storage & streak
 // ============================================================
-async function onAnswerSubmitted(result: AnswerResult, video: HTMLVideoElement): Promise<void> {
+async function onAnswerSubmitted(
+  result: AnswerResult,
+  video: HTMLVideoElement,
+): Promise<void> {
   const stored = await chrome.storage.local.get(STORAGE_KEYS.sessionStats);
 
   const questionsAsked: number = (stored.questionsAsked ?? 0) + 1;
-  const correctCount: number = (stored.correctCount ?? 0) + (result.correct ? 1 : 0);
+  const correctCount: number =
+    (stored.correctCount ?? 0) + (result.correct ? 1 : 0);
 
   // Streak: increment if correct, reset to 0 if wrong
   const prevStreak: number = stored.streak ?? 0;
@@ -284,7 +311,10 @@ async function onAnswerSubmitted(result: AnswerResult, video: HTMLVideoElement):
 // ============================================================
 // 8. SESSION MANAGEMENT — Create or reuse a backend session
 // ============================================================
-async function pollSessionReady(sid: string, maxWaitMs = 60_000): Promise<string | null> {
+async function pollSessionReady(
+  sid: string,
+  maxWaitMs = 60_000,
+): Promise<string | null> {
   const POLL_MS = 3_000;
   const deadline = Date.now() + maxWaitMs;
 
@@ -296,7 +326,10 @@ async function pollSessionReady(sid: string, maxWaitMs = 60_000): Promise<string
       const data = (await res.json()) as SessionResponse;
 
       if (data.status === "failed") {
-        console.warn("[LP] Session failed:", data.error ?? "no captions available");
+        console.warn(
+          "[LP] Session failed:",
+          data.error ?? "no captions available",
+        );
         return null;
       }
       if (data.status === "ready") {
@@ -305,7 +338,9 @@ async function pollSessionReady(sid: string, maxWaitMs = 60_000): Promise<string
         }
         return sid;
       }
-    } catch { /* network hiccup, keep polling */ }
+    } catch {
+      /* network hiccup, keep polling */
+    }
   }
   console.warn("[LP] Session did not become ready within timeout.");
   return null;
@@ -330,7 +365,8 @@ async function getOrCreateSession(): Promise<string | null> {
     if (!response.ok) throw new Error(`/transcribe failed: ${response.status}`);
 
     const data = (await response.json()) as TranscribeResponse;
-    if (!data.session_id) throw new Error("/transcribe response missing session_id");
+    if (!data.session_id)
+      throw new Error("/transcribe response missing session_id");
 
     const sid: string = data.session_id;
 
@@ -353,7 +389,9 @@ async function getOrCreateSession(): Promise<string | null> {
 
     // Wait for Celery to finish processing
     const readySid = await pollSessionReady(sid);
-    await chrome.storage.local.set({ sessionStatus: readySid ? "ready" : "failed" });
+    await chrome.storage.local.set({
+      sessionStatus: readySid ? "ready" : "failed",
+    });
     return readySid;
   } catch (err) {
     console.error("[LP] Session creation error:", err);
@@ -378,45 +416,53 @@ function updateBadge(status: "ACTIVE" | "IDLE", scorePercent?: number): void {
 // ============================================================
 // 10. RECEIVE LIVE QUESTIONS FROM T2 BACKGROUND SCRIPT
 // ============================================================
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
-  if (message.type === "GET_VIDEO_STATUS") {
-    const currentVideo = videoRef ?? document.querySelector<HTMLVideoElement>("video");
-    const isPlaying =
-      !!currentVideo &&
-      !currentVideo.paused &&
-      !currentVideo.ended &&
-      currentVideo.readyState >= 2;
+chrome.runtime.onMessage.addListener(
+  (message: ExtensionMessage, _sender, sendResponse) => {
+    if (message.type === "GET_VIDEO_STATUS") {
+      const currentVideo =
+        videoRef ?? document.querySelector<HTMLVideoElement>("video");
+      const isPlaying =
+        !!currentVideo &&
+        !currentVideo.paused &&
+        !currentVideo.ended &&
+        currentVideo.readyState >= 2;
 
-    const response: VideoStatusResponse = {
-      extensionDetected: true,
-      videoFound: !!currentVideo,
-      videoPlaying: isPlaying,
-      extensionEnabled,
-    };
+      const response: VideoStatusResponse = {
+        extensionDetected: true,
+        videoFound: !!currentVideo,
+        videoPlaying: isPlaying,
+        extensionEnabled,
+      };
 
-    console.debug("[LP][Debug] Popup requested video status:", response);
-    sendResponse(response);
-    return;
-  }
-
-  if (!extensionEnabled) return;
-
-  if (message.type === "SHOW_QUIZ") {
-    const video = videoRef ?? (document.querySelector("video") as HTMLVideoElement | null);
-    if (video && !quizActive) {
-      quizActive = true;
-      sessionId = sessionId ?? message.session_id;
-      pauseAndBlur(video);
-      renderQuizOverlay(message.question, video);
+      console.debug("[LP][Debug] Popup requested video status:", response);
+      sendResponse(response);
+      return;
     }
-  }
-});
+
+    if (!extensionEnabled) return;
+
+    if (message.type === "SHOW_QUIZ") {
+      const video =
+        videoRef ??
+        (document.querySelector("video") as HTMLVideoElement | null);
+      if (video && !quizActive) {
+        quizActive = true;
+        sessionId = sessionId ?? message.session_id;
+        pauseAndBlur(video);
+        renderQuizOverlay(message.question, video);
+      }
+    }
+  },
+);
 
 // ============================================================
 // START
 // ============================================================
 async function bootstrap(): Promise<void> {
-  console.debug("[LP][Debug] Content script injected on:", window.location.href);
+  console.debug(
+    "[LP][Debug] Content script injected on:",
+    window.location.href,
+  );
 
   const settings = await chrome.storage.local.get([
     ...STORAGE_KEYS.extensionSettings,
@@ -444,7 +490,10 @@ async function bootstrap(): Promise<void> {
     if (areaName !== "local") return;
 
     if (changes.demoMode) {
-      demoMode = typeof changes.demoMode.newValue === "boolean" ? changes.demoMode.newValue : false;
+      demoMode =
+        typeof changes.demoMode.newValue === "boolean"
+          ? changes.demoMode.newValue
+          : false;
     }
 
     if (!changes.extensionEnabled) return;
@@ -454,6 +503,14 @@ async function bootstrap(): Promise<void> {
     if (!extensionEnabled) {
       if (quizActive && videoRef) {
         resumeVideo(videoRef);
+      }
+      if (checkpointTimer) {
+        clearInterval(checkpointTimer);
+        checkpointTimer = null;
+      }
+      if (initRetryTimer) {
+        clearTimeout(initRetryTimer);
+        initRetryTimer = null;
       }
       updateBadge("IDLE");
       return;
