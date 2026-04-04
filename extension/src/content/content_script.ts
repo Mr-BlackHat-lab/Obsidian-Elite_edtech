@@ -131,54 +131,60 @@ async function handleTimeUpdate(video: HTMLVideoElement): Promise<void> {
   const interval = demoMode ? 30 : QUIZ_INTERVAL_SECONDS;
   const elapsed = video.currentTime - lastQuizTime;
 
-  // Require video to have been playing for at least 10 seconds before first quiz
-  if (elapsed >= interval && video.currentTime > 10) {
+  // Debug logging
+  if (Math.floor(video.currentTime) % 5 === 0 && video.currentTime > 0) {
+    console.log(`[LP] Time: ${Math.floor(video.currentTime)}s, Elapsed: ${Math.floor(elapsed)}s, Interval: ${interval}s, Demo: ${demoMode}`);
+  }
+
+  // First quiz: wait for interval time (30s demo or 300s normal)
+  // Subsequent quizzes: wait for interval time from last quiz
+  if (elapsed >= interval) {
+    console.log(`[LP] Checkpoint reached! Time: ${Math.floor(video.currentTime)}s, Triggering quiz...`);
     quizActive = true;
-    pauseAndBlur(video);
+    pauseVideoStrict(video);
 
     try {
-      const question = await fetchQuestion(sessionId);
+      // Get transcript chunk from current timestamp
+      const question = await fetchQuestionForCurrentTime(sessionId, video.currentTime);
       if (!question) throw new Error("Empty question from backend");
       renderQuizOverlay(question, video);
     } catch (err) {
       console.error("[LP] Could not load question:", err);
-      resumeVideo(video);
+      resumeVideoAuto(video);
       quizActive = false;
     }
   }
 }
 
 // ============================================================
-// 4. PAUSE & BLUR — Lock the page during quiz
+// 4. PAUSE VIDEO (STRICT) — Video MUST pause, NO blur, Block keys
 // ============================================================
-function pauseAndBlur(video: HTMLVideoElement): void {
+function pauseVideoStrict(video: HTMLVideoElement): void {
+  // STRICTLY pause video - mandatory
   video.pause();
-
-  // Apply blur to body, but NOT to the overlay container
-  document.body.style.filter = "blur(6px)";
-  document.body.style.pointerEvents = "none";
-  document.body.style.userSelect = "none";
-  document.body.style.transition = "filter 0.3s ease";
-
-  // Block Escape and all navigation shortcuts
+  
+  // DO NOT blur screen - keep clear view
+  // DO NOT blur body
+  
+  // Block keyboard shortcuts during quiz
   window.addEventListener("keydown", blockNavigationKeys, true);
+  
+  console.log("[LP] Video PAUSED strictly. Keyboard shortcuts BLOCKED.");
 }
 
-function resumeVideo(video: HTMLVideoElement): void {
+function resumeVideoAuto(video: HTMLVideoElement): void {
+  // AUTO-PLAY video after quiz
   video.play().catch(() => {
-    // Autoplay might be blocked — user can click play
-    console.warn("[LP] Autoplay blocked after quiz.");
+    console.warn("[LP] Autoplay blocked, user needs to click play.");
   });
-
-  document.body.style.filter = "";
-  document.body.style.pointerEvents = "";
-  document.body.style.userSelect = "";
-  document.body.style.transition = "";
-
+  
+  // Unblock keyboard shortcuts
   window.removeEventListener("keydown", blockNavigationKeys, true);
-
+  
   lastQuizTime = video.currentTime;
   quizActive = false;
+  
+  console.log("[LP] Video AUTO-PLAYING. Keyboard shortcuts UNBLOCKED.");
 }
 
 /** Blocks Escape and common keyboard shortcuts while quiz is active */
@@ -193,39 +199,80 @@ function blockNavigationKeys(e: KeyboardEvent): void {
 }
 
 // ============================================================
-// 5. FETCH QUESTION FROM BACKEND
+// 5. FETCH QUESTION FROM BACKEND (FREE UNLIMITED API)
 // ============================================================
-async function fetchQuestion(sid: string): Promise<Question | null> {
+async function fetchQuestionForCurrentTime(sid: string, currentTime: number): Promise<Question | null> {
   const stored = await chrome.storage.local.get(["transcript"]);
-  const transcriptChunk: string =
+  const fullTranscript: string =
     typeof stored.transcript === "string" && stored.transcript
       ? stored.transcript
       : "Educational video content about programming and technology.";
 
-  const response = await fetch(`${BACKEND_URL}/generate-questions`, {
+  // Extract relevant chunk based on current video time
+  // Improved: Use larger context window for better questions
+  const wordsPerMinute = 150;
+  const wordsPerSecond = wordsPerMinute / 60; // 2.5 words/second
+  const estimatedWordPosition = Math.floor(currentTime * wordsPerSecond);
+  
+  const words = fullTranscript.split(/\s+/);
+  
+  // Use larger window: 100 words before and after current position
+  const windowSize = 100;
+  const startWord = Math.max(0, estimatedWordPosition - windowSize);
+  const endWord = Math.min(words.length, estimatedWordPosition + windowSize);
+  const transcriptChunk = words.slice(startWord, endWord).join(" ");
+
+  // If chunk is too small, use more context
+  let finalChunk = transcriptChunk;
+  if (transcriptChunk.split(/\s+/).length < 50) {
+    // Use first 200 words if we're early in the video
+    if (currentTime < 60) {
+      finalChunk = words.slice(0, 200).join(" ");
+    } else {
+      // Use larger window
+      const largeStart = Math.max(0, estimatedWordPosition - 150);
+      const largeEnd = Math.min(words.length, estimatedWordPosition + 150);
+      finalChunk = words.slice(largeStart, largeEnd).join(" ");
+    }
+  }
+
+  console.log(`[LP] Fetching question for time ${Math.floor(currentTime)}s from FREE API...`);
+  console.log(`[LP] Transcript chunk (${finalChunk.split(/\s+/).length} words): "${finalChunk.substring(0, 150)}..."`);
+
+  // Use FREE unlimited endpoint
+  const response = await fetch(`${BACKEND_URL}/free-question`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      transcript_chunk: transcriptChunk,
+      transcript_chunk: finalChunk,
       session_id: sid,
+      difficulty: "medium" // Will be auto-adjusted based on user score
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`generate-questions failed: ${response.status}`);
+    throw new Error(`free-question failed: ${response.status}`);
   }
 
-  const data = (await response.json()) as GenerateQuestionsResponse;
-  const question: Question | undefined = data.questions?.[0];
-  return question ?? null;
+  const data = await response.json();
+  
+  console.log(`[LP] Question generated in ${data.generation_time_ms}ms using FREE API`);
+  console.log(`[LP] Model: ${data.model}`);
+  console.log(`[LP] Difficulty: ${data.difficulty_used}`);
+  console.log(`[LP] Question: "${data.question.question}"`);
+  console.log(`[LP] Concept: ${data.question.concept_tag}`);
+  
+  return data.question ?? null;
 }
 
 // ============================================================
-// 6. RENDER QUIZ OVERLAY — Dynamic import to keep bundle lean
+// 6. RENDER QUIZ OVERLAY — Direct import (no code splitting)
 // ============================================================
+import { mountQuizOverlay } from "./quiz_overlay";
+
 function renderQuizOverlay(question: Question, video: HTMLVideoElement): void {
   if (!extensionEnabled) {
-    resumeVideo(video);
+    resumeVideoAuto(video);
     quizActive = false;
     return;
   }
@@ -233,23 +280,20 @@ function renderQuizOverlay(question: Question, video: HTMLVideoElement): void {
   const currentSessionId = sessionId;
   if (!currentSessionId) {
     console.warn("[LP] Missing session id while rendering quiz overlay.");
-    resumeVideo(video);
+    resumeVideoAuto(video);
     quizActive = false;
     return;
   }
 
-  // @ts-ignore -- dynamic import resolves correctly in both webpack and tsc
-  import("./quiz_overlay")
-    .then(({ mountQuizOverlay }) => {
-      mountQuizOverlay(question, currentSessionId, (result: AnswerResult) => {
-        onAnswerSubmitted(result, video);
-      });
-    })
-    .catch((err) => {
-      console.error("[LP] Failed to load quiz overlay module:", err);
-      resumeVideo(video);
-      quizActive = false;
+  try {
+    mountQuizOverlay(question, currentSessionId, (result: AnswerResult) => {
+      onAnswerSubmitted(result, video);
     });
+  } catch (err) {
+    console.error("[LP] Failed to load quiz overlay:", err);
+    resumeVideoAuto(video);
+    quizActive = false;
+  }
 }
 
 // ============================================================
@@ -277,8 +321,8 @@ async function onAnswerSubmitted(result: AnswerResult, video: HTMLVideoElement):
     streak,
   });
 
-  // Brief pause so user can absorb the explanation, then resume
-  setTimeout(() => resumeVideo(video), 1_500);
+  // Brief pause so user can absorb the explanation, then AUTO-PLAY video
+  setTimeout(() => resumeVideoAuto(video), 1_500);
 }
 
 // ============================================================
@@ -399,6 +443,32 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     return;
   }
 
+  if (message.type === "RESET_SESSION") {
+    console.log("[LP] Reset session requested");
+    
+    // Clear session state
+    sessionId = null;
+    initialized = false;
+    quizActive = false;
+    lastQuizTime = 0;
+    
+    // If video is paused by quiz, resume it
+    if (videoRef && videoRef.paused) {
+      videoRef.play().catch(() => {
+        console.warn("[LP] Could not auto-play after reset");
+      });
+    }
+    
+    // Reinitialize if extension is enabled
+    if (extensionEnabled) {
+      console.log("[LP] Reinitializing after reset...");
+      void init();
+    }
+    
+    sendResponse({ success: true });
+    return;
+  }
+
   if (!extensionEnabled) return;
 
   if (message.type === "SHOW_QUIZ") {
@@ -406,7 +476,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     if (video && !quizActive) {
       quizActive = true;
       sessionId = sessionId ?? message.session_id;
-      pauseAndBlur(video);
+      pauseVideoStrict(video);
       renderQuizOverlay(message.question, video);
     }
   }
@@ -453,7 +523,7 @@ async function bootstrap(): Promise<void> {
 
     if (!extensionEnabled) {
       if (quizActive && videoRef) {
-        resumeVideo(videoRef);
+        resumeVideoAuto(videoRef);
       }
       updateBadge("IDLE");
       return;

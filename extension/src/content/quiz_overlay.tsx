@@ -192,7 +192,16 @@ function QuizOverlay({ question, sessionId, onComplete }: QuizOverlayProps) {
             <span className={`lp-badge lp-badge--difficulty ${difficultyClass}`.trim()}>
               {DIFFICULTY_LABELS[question.difficulty]}
             </span>
-            <span className="lp-badge lp-badge--concept">{question.concept_tag}</span>
+            <button 
+              className="lp-badge lp-badge--concept lp-badge--clickable"
+              onClick={() => {
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(question.concept_tag)}`;
+                window.open(searchUrl, '_blank', 'noopener,noreferrer');
+              }}
+              title={`Search for "${question.concept_tag}" on Google`}
+            >
+              {question.concept_tag} 🔍
+            </button>
           </div>
         </div>
 
@@ -315,6 +324,8 @@ export function mountQuizOverlay(
   sessionId: string,
   onComplete: (result: AnswerResult) => void
 ): void {
+  console.log("[LP] mountQuizOverlay called - rendering quiz UI");
+  
   document.getElementById("learnpulse-root")?.remove();
 
   const host = document.createElement("div");
@@ -343,8 +354,7 @@ export function mountQuizOverlay(
       align-items: center;
       justify-content: center;
       z-index: 2147483647;
-      background: rgba(15, 15, 15, 0.8);
-      backdrop-filter: blur(6px);
+      background: rgba(15, 15, 15, 0.95);
       font-family: 'Roboto', 'Segoe UI', system-ui, sans-serif;
       padding: 24px;
     }
@@ -431,6 +441,18 @@ export function mountQuizOverlay(
       color: #d0d0d0;
       background: #262626;
       border: 1px solid #3f3f3f;
+    }
+
+    .lp-badge--clickable {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .lp-badge--clickable:hover {
+      background: #323232;
+      border-color: #5f5f5f;
+      color: #f1f1f1;
+      transform: translateY(-1px);
     }
 
     .lp-divider {

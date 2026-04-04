@@ -9,6 +9,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
+from api.routes.free_generation import router as free_generation_router
+from services.in_memory_storage import get_in_memory_db
 
 
 async def _warmup_whisper() -> None:
@@ -25,25 +27,38 @@ async def _warmup_whisper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/learnpulse")
-    client = AsyncIOMotorClient(mongodb_url)
-    db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
-    app.state.mongo_client = client
-    app.state.db = client[db_name]
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
+    
+    try:
+        client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
+        db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
+        app.state.mongo_client = client
+        app.state.db = client[db_name]
 
-    # Create key indexes once to keep session/user lookups fast.
-    await app.state.db.sessions.create_index("session_id", unique=True)
-    await app.state.db.sessions.create_index("user_id")
-    await app.state.db.sessions.create_index("video_url")
-    await app.state.db.users.create_index("user_id", unique=True)
-    await app.state.db.users.create_index("username", unique=True)
+        # Test connection
+        await client.admin.command('ping')
+        print(f"[startup] MongoDB connected: {mongodb_url}")
+        
+        # Create key indexes once to keep session/user lookups fast.
+        await app.state.db.sessions.create_index("session_id", unique=True)
+        await app.state.db.sessions.create_index("user_id")
+        await app.state.db.sessions.create_index("video_url")
+        await app.state.db.users.create_index("user_id", unique=True)
+        await app.state.db.users.create_index("username", unique=True)
+        print("[startup] MongoDB indexes created")
+    except Exception as e:
+        print(f"[startup] MongoDB connection failed: {e}")
+        print("[startup] Running without MongoDB - using in-memory storage")
+        app.state.mongo_client = None
+        app.state.db = get_in_memory_db()
 
     # Warm up Whisper in background — don’t block startup if it fails
     asyncio.create_task(_warmup_whisper())
 
     yield
 
-    client.close()
+    if app.state.mongo_client:
+        app.state.mongo_client.close()
 
 
 app = FastAPI(title="LearnPulse AI", version="1.0.0", lifespan=lifespan)
@@ -59,6 +74,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(performance_router)
 app.include_router(transcription_router)
+app.include_router(free_generation_router)
 
 
 @app.get("/health")

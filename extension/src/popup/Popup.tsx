@@ -435,8 +435,28 @@ function Popup() {
             No captions found for this video. Try a video with subtitles enabled.
           </p>
         </div>
-      ) : active ? (
+      ) : active && stats.questionsAsked > 0 ? (
         <Dashboard stats={stats} />
+      ) : active && stats.questionsAsked === 0 ? (
+        <div className="lp-popup-empty">
+          <div className="lp-popup-empty-icon">🎯</div>
+          <p className="lp-popup-empty-text">
+            Session ready! Play the video and wait for your first quiz checkpoint.
+          </p>
+          <div style={{ marginTop: '16px', textAlign: 'center' }}>
+            <div style={{ 
+              padding: '12px 20px',
+              background: 'linear-gradient(135deg, #f1f1f1 0%, #d8d8d8 100%)',
+              borderRadius: '12px',
+              color: '#111',
+              fontWeight: '700',
+              fontSize: '14px',
+              display: 'inline-block'
+            }}>
+              ▶️ Start Learning
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="lp-popup-empty">
           <div className="lp-popup-empty-icon">🎬</div>
@@ -449,14 +469,35 @@ function Popup() {
       {/* ── Footer ── */}
       <div className="lp-popup-footer">
         <span className="lp-popup-version">LearnPulse v1.0{deviceUserId ? ` · ${deviceUserId}` : ""}</span>
-        {active && extensionEnabled && (
+        {active && stats.questionsAsked > 0 && extensionEnabled && (
           <button
             onClick={() => {
-              chrome.storage.local.clear(() => {
-                setActive(false);
-                setSessionStatus("idle");
-                setStats(EMPTY_STATS);
-                setExtensionEnabled(true);
+              // Clear session data but keep extension settings
+              chrome.storage.local.get(["extensionEnabled", "demoMode", "deviceUserId"], (settings) => {
+                chrome.storage.local.clear(() => {
+                  // Restore extension settings
+                  chrome.storage.local.set({
+                    extensionEnabled: settings.extensionEnabled ?? true,
+                    demoMode: settings.demoMode ?? false,
+                    deviceUserId: settings.deviceUserId ?? ""
+                  }, () => {
+                    // Update UI state
+                    setActive(false);
+                    setSessionStatus("idle");
+                    setStats(EMPTY_STATS);
+                    
+                    // Send message to content script to reinitialize
+                    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                      if (tabs[0]?.id) {
+                        chrome.tabs.sendMessage(tabs[0].id, { type: "RESET_SESSION" }).catch(() => {
+                          // Content script may not be ready, that's ok
+                        });
+                      }
+                    });
+                    
+                    console.log("[LP Popup] Session reset complete");
+                  });
+                });
               });
             }}
             className="lp-reset-btn"
