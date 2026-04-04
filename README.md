@@ -32,19 +32,19 @@
 **Quiz Overlay on YouTube**
 ```
 ╔══════════════════════════════════════╗
-║  ▶  Intro to Machine Learning 08:42 ║
+║  ▶  Intro to Machine Learning 08:42  ║
 ╠══════════════════════════════════════╣
-║  🧠  Quick Check — Neural Networks  ║
-║  ────────────────────────────────── ║
-║  What is the purpose of a loss fn?  ║
-║                                     ║
-║  ○  A) Initialize weights           ║
-║  ●  B) Measure prediction error  ✓  ║
-║  ○  C) Normalize input data         ║
-║  ○  D) Split the dataset            ║
-║                                     ║
-║  ████████████████░░░░  Score: 85%   ║
-║  Topic: Neural Networks · Medium    ║
+║  🧠  Quick Check — Neural Networks   ║
+║  ────────────────────────────────────║
+║  What is the purpose of a loss fn?   ║
+║                                      ║
+║  ○  A) Initialize weights            ║
+║  ●  B) Measure prediction error  ✓   ║
+║  ○  C) Normalize input data          ║
+║  ○  D) Split the dataset             ║
+║                                      ║
+║  ████████████████░░░░  Score: 85%    ║
+║  Topic: Neural Networks · Medium     ║
 ╚══════════════════════════════════════╝
 ```
 
@@ -53,8 +53,8 @@
 
 **Performance Dashboard**
 ```
-╔══════════════════════════════════════╗
-║  📊  Performance Report             ║
+╔═════════════════════════════════════╗
+║  📊  Performance Report            ║
 ║  ────────────────────────────────── ║
 ║  Overall Accuracy      85%  17/20   ║
 ║  Total Sessions          5          ║
@@ -66,8 +66,8 @@
 ║  Loss Functions    ██████████100%   ║
 ║  ────────────────────────────────── ║
 ║  ⚠ Weak: Optimization              ║
-║  💡 Revise before next session      ║
-╚══════════════════════════════════════╝
+║  💡 Revise before next session     ║
+╚═════════════════════════════════════╝
 ```
 
 </td>
@@ -113,33 +113,33 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          CLIENT  LAYER                              │
 │                                                                     │
-│   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │
-│   │  🌐  Browser     │  │  🔌  Chrome      │  │  💻  Python     │ │
-│   │     Frontend     │  │    Extension     │  │      CLI        │ │
-│   │                  │  │  (TypeScript)    │  │    (Click)      │ │
-│   └────────┬─────────┘  └────────┬─────────┘  └────────┬────────┘ │
-└────────────┼────────────────────┼────────────────────┼────────────┘
+│   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│   │  🌐  Browser     │ │  🔌  Chrome      │  │  💻  Python      │ │
+│   │     Frontend     │  │    Extension     │  │      CLI         │  │
+│   │                  │  │  (TypeScript)    │  │    (Click)       │  │
+│   └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
+└────────────┼────────────────────┼────────────────────┼──────────────┘
              └────────────────────┼────────────────────┘
                                   │  HTTP REST / WebSocket
 ┌─────────────────────────────────▼───────────────────────────────────┐
 │                        FASTAPI  BACKEND  (Python 3.11+)             │
 │                                                                     │
-│  ┌───────────────────┐  ┌───────────────────┐  ┌─────────────────┐ │
-│  │   🔐  /auth/*     │  │   👤  /users/*    │  │  🎓  Learning  │ │
-│  │                   │  │                   │  │                 │ │
-│  │  POST /register   │  │  GET    /me        │  │  POST /transcr │ │
-│  │  POST /login      │  │  PUT    /me        │  │  POST /gen-q   │ │
-│  │  GET  /github     │  │  DELETE /me        │  │  POST /submit  │ │
-│  │  GET  /callback   │  │  GET    /{id}      │  │  GET  /session │ │
-│  │                   │  │  GET    /          │  │  GET  /perf    │ │
-│  │  JWT + bcrypt     │  │  JWT Protected     │  │  WS   /ws/live │ │
-│  │  GitHub OAuth     │  │  Pagination        │  │                 │ │
-│  └───────────────────┘  └───────────────────┘  └─────────────────┘ │
+│  ┌───────────────────┐  ┌────────────────────┐  ┌────────────────┐  │
+│  │   🔐  /auth/*     │ │   👤  /users/*     │  │  🎓  Learning  │  │
+│  │                   │  │                    │  │                │  │
+│  │  POST /register   │  │  GET    /me        │  │  POST /transcr │  │
+│  │  POST /login      │  │  PUT    /me        │  │  POST /gen-q   │  │
+│  │  GET  /github     │  │  DELETE /me        │  │  POST /submit  │  │
+│  │  GET  /callback   │  │  GET    /{id}      │  │  GET  /session │  │
+│  │                   │  │  GET    /          │  │  GET  /perf    │  │ 
+│  │  JWT + bcrypt     │  │  JWT Protected     │  │  WS   /ws/live │  │
+│  │  GitHub OAuth     │  │  Pagination        │  │                │  │
+│  └───────────────────┘  └───────────────────┘  └─────────────────┘  │
 └──────────────────────────────────┬──────────────────────────────────┘
                                    │
              ┌─────────────────────┼─────────────────────┐
              │                     │                     │
-┌────────────▼──────────┐ ┌────────▼──────────┐ ┌───────▼─────────────┐
+┌────────────▼──────────┐ ┌────────▼───────────┐ ┌───────▼─────────────┐
 │       MongoDB         │ │       Redis        │ │   Celery  Worker    │
 │                       │ │                    │ │                     │
 │  users                │ │  Task queue        │ │  process_video_task │
@@ -173,7 +173,7 @@
     │                                                    ├── check duplicate email
     │                                                    ├── bcrypt.hash(password)
     │                                                    ├── save to MongoDB
-    │  { user_id, username, token } ◄────────────────── ├── generate JWT
+    │  { user_id, username, token } ◄─────────────────── ├── generate JWT
     │                                                    │
     │  ─────────────── LOGIN ───────────────────────     │
     │                                                    │
@@ -181,14 +181,14 @@
     │  { username, password } ─────────────────────────► │
     │                                                    ├── find user in MongoDB
     │                                                    ├── bcrypt.verify(password)
-    │  { user_id, username, token } ◄────────────────── ├── generate JWT
+    │  { user_id, username, token } ◄─────────────────── ├── generate JWT
     │                                                    │
     │  ─────────────── GITHUB OAUTH ────────────────     │
     │                                                    │
     │  GET /auth/github ───────────────────────────────► │
     │  ◄──────── 302 → GitHub Login Page ─────────────── │
     │                                                    │
-    │  GET /auth/github/callback ─────────────────────► │
+    │  GET /auth/github/callback ──────────────────────► │
     │                                                    ├── exchange code → token
     │                                                    ├── GET api.github.com/user
     │                                                    ├── GET /user/emails
@@ -198,7 +198,7 @@
     │  ─────────────── PROTECTED ───────────────────     │
     │                                                    │
     │  GET /users/me                                     │
-    │  Authorization: Bearer <JWT> ───────────────────► │
+    │  Authorization: Bearer <JWT> ────────────────────► │
     │                                                    ├── decode JWT
     │                                                    ├── validate signature
     │  { user profile } ◄──────────────────────────────  ├── return user data
@@ -213,18 +213,18 @@
            │
            ▼
   ┌─────────────────────────┐
-  │  Session already exists? ├──── YES ──► return cached session_id ✅
+  │  Session already exists?├──── YES ──► return cached session_id ✅
   └────────────┬────────────┘
                │ NO
                ▼
   ┌─────────────────────────┐
-  │  Create MongoDB session  │  status: "processing"
+  │  Create MongoDB session │  status: "processing"
   └────────────┬────────────┘
                │
                ▼
   ┌─────────────────────────┐
-  │  Celery async task       │──► return session_id to user immediately
-  │  process_video_task()    │
+  │  Celery async task      │──► return session_id to user immediately
+  │  process_video_task()   │
   └────────────┬────────────┘
                │
         ┌──────┴──────┐
@@ -251,7 +251,7 @@
   └────────────┬────────────┘
                ▼
   ┌─────────────────────────┐
-  │  Save to MongoDB         │  status: "ready" ✅
+  │  Save to MongoDB        │  status: "ready" ✅
   └─────────────────────────┘
 ```
 
@@ -284,10 +284,10 @@
 ## 📊 Adaptive Difficulty Engine
 
 ```
-  ┌──────────────────────────────────────────────────────┐
-  │              ADAPTIVE DIFFICULTY LOGIC               │
-  ├──────────────────────────────────────────────────────┤
-  │                                                      │
+  ┌───────────────────────────────────────────────────────┐
+  │              ADAPTIVE DIFFICULTY LOGIC                │
+  ├───────────────────────────────────────────────────────┤
+  │                                                       │
   │   Score < 0.40        →   🟢  EASY    (recall)       │
   │   0.40 ≤ score ≤ 0.70 →   🟡  MEDIUM  (explain)      │
   │   Score > 0.70        →   🔴  HARD    (apply/analyze)│
@@ -584,11 +584,6 @@ git push origin feature/your-feature
 
 Open a Pull Request on GitHub.
 
----
-
-## 📄 License
-
-TBD
 
 ---
 
