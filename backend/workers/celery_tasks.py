@@ -29,16 +29,10 @@ def _video_question_cache_key(video_url: str) -> str:
 def _looks_like_fallback_questions(questions: list[dict]) -> bool:
     if not questions:
         return False
-    fallback_markers = {
-        "This fallback answer is used when AI generation is unavailable.",
-        "Option A",
-        "Option B",
-        "Option C",
-        "Option D",
-    }
     first = questions[0] if isinstance(questions[0], dict) else {}
-    explanation = str(first.get("explanation", "")).strip()
-    return explanation in fallback_markers or str(first.get("concept_tag", "")).strip().lower() == "general"
+    question_id = str(first.get("question_id", "")).strip().lower()
+    concept_tag = str(first.get("concept_tag", "")).strip().lower()
+    return question_id.startswith("q_fallback_") or concept_tag == "general"
 
 
 def _demo_questions(video_url: str) -> list[dict]:

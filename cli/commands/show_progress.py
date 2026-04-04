@@ -74,7 +74,7 @@ def progress_command(user_id: str) -> None:
 
         for row in topic_rows:
             pct = int(float(row.get("accuracy", 0.0)) * 100)
-            status = "✅" if pct >= 80 else "⚠️" if pct >= 60 else "❌"
+            status = "OK" if pct >= 80 else "WARN" if pct >= 60 else "LOW"
             table.add_row(status, str(row.get("topic", "General")), f"{pct}%")
 
         console.print(table)

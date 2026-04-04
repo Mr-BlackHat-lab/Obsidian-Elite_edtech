@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,6 +19,21 @@ from api.routes.transcription import router as transcription_router
 from api.routes.free_generation import router as free_generation_router
 from services.in_memory_storage import get_in_memory_db
 from api.routes.users import router as users_router
+
+
+class _ExcludeHealthAccessLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        return '"GET /health' not in message and '"OPTIONS /health' not in message
+
+
+def _configure_access_log_filters() -> None:
+    # Keep access logs, but suppress very frequent health checks by default.
+    if os.getenv("LOG_HEALTH_ACCESS", "false").lower() in {"1", "true", "yes", "on"}:
+        return
+
+    logger = logging.getLogger("uvicorn.access")
+    logger.addFilter(_ExcludeHealthAccessLogFilter())
 
 
 async def _warmup_whisper() -> None:
@@ -73,6 +89,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LearnPulse AI", version="1.0.0", lifespan=lifespan)
+_configure_access_log_filters()
 
 allowed_origins = [
     origin.strip()

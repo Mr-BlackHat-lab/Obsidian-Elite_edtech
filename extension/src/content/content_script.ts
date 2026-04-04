@@ -204,6 +204,13 @@ async function handleTimeUpdate(video: HTMLVideoElement): Promise<void> {
 
   // Require video to have been playing for at least 10 seconds before first quiz
   if (elapsed >= interval && video.currentTime > 10) {
+    console.debug("[LP] Checkpoint reached", {
+      sessionId,
+      demoMode,
+      currentTime: Math.round(video.currentTime),
+      elapsed: Math.round(elapsed),
+      interval,
+    });
     quizActive = true;
     pauseAndBlur(video);
 
@@ -280,6 +287,11 @@ function blockNavigationKeys(e: KeyboardEvent): void {
 // 5. FETCH QUESTION FROM BACKEND
 // ============================================================
 async function fetchQuestion(sid: string): Promise<Question | null> {
+  console.debug("[LP] Fetching question from backend", {
+    sessionId: sid,
+    endpoint: `${BACKEND_URL}/generate-questions`,
+  });
+
   const stored = await chrome.storage.local.get(["transcript"]);
   const transcriptChunk: string =
     typeof stored.transcript === "string" && stored.transcript
