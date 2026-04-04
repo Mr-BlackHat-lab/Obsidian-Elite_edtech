@@ -1,0 +1,42 @@
+[
+  {
+    "question_id": "demo_q1",
+    "question": "What is the primary purpose of a Docker volume?",
+    "type": "mcq",
+    "difficulty": "easy",
+    "options": [
+      "To persist data outside the container lifecycle",
+      "To build container images faster",
+      "To expose ports to the host",
+      "To schedule pods"
+    ],
+    "answer": "A",
+    "explanation": "Docker volumes keep data independent from a specific container so data survives container recreation.",
+    "concept_tag": "Docker fundamentals"
+  },
+  {
+    "question_id": "demo_q2",
+    "question": "Which Kubernetes object is used to keep a desired number of pod replicas running?",
+    "type": "mcq",
+    "difficulty": "medium",
+    "options": ["ConfigMap", "Deployment", "Ingress", "Secret"],
+    "answer": "B",
+    "explanation": "A Deployment manages ReplicaSets and ensures the desired pod count and rollout behavior.",
+    "concept_tag": "Kubernetes basics"
+  },
+  {
+    "question_id": "demo_q3",
+    "question": "In containerized apps, what does an Ingress mainly provide?",
+    "type": "mcq",
+    "difficulty": "medium",
+    "options": [
+      "Persistent storage",
+      "External HTTP/HTTPS routing",
+      "Container image scanning",
+      "Pod autoscaling"
+    ],
+    "answer": "B",
+    "explanation": "Ingress defines external access rules and routes HTTP/HTTPS traffic to services.",
+    "concept_tag": "Kubernetes networking"
+  }
+]

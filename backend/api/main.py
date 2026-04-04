@@ -24,8 +24,23 @@ async def _warmup_whisper() -> None:
         await asyncio.to_thread(get_whisper_model)
         print("[startup] Whisper model loaded.")
     except Exception as exc:
+        message = str(exc)
+
+        # If the cached Whisper model file is corrupted, remove it once and retry.
+        if "SHA256 checksum" in message:
+            model_name = os.getenv("WHISPER_MODEL", "base")
+            cache_file = f"/root/.cache/whisper/{model_name}.pt"
+            try:
+                os.remove(cache_file)
+                print(f"[startup] Removed corrupted Whisper cache: {cache_file}")
+                await asyncio.to_thread(get_whisper_model)
+                print("[startup] Whisper model loaded after cache refresh.")
+                return
+            except Exception as retry_exc:
+                message = f"{message}; retry failed: {retry_exc}"
+
         # Non-fatal — live transcription will still work, just slower on first chunk
-        print(f"[startup] Whisper warm-up skipped: {exc}")
+        print(f"[startup] Whisper warm-up skipped: {message}")
 
 
 @asynccontextmanager
@@ -85,12 +100,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LearnPulse AI", version="1.0.0", lifespan=lifespan)
 
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(auth_router)
