@@ -54,13 +54,11 @@ interface BackendPerformanceResponse {
 }
 
 function extractUserIdFromToken(token: string): string | null {
-  if (token.startsWith("access:")) {
-    const userId = token.slice("access:".length);
-    return userId ? userId : null;
-  }
-  if (token.startsWith("refresh:")) {
-    const userId = token.slice("refresh:".length);
-    return userId ? userId : null;
+  for (const prefix of ["access:", "refresh:"]) {
+    if (token.startsWith(prefix)) {
+      const userId = token.slice(prefix.length);
+      return userId ? userId : null;
+    }
   }
   return null;
 }
@@ -168,6 +166,8 @@ export async function signup(payload: SignupPayload): Promise<{
 }
 
 export async function login(payload: LoginPayload): Promise<{ user: AuthUser; tokens: AuthTokens }> {
+  // Backend auth currently accepts username/email registration, so we derive
+  // a stable username candidate from email for sign-in compatibility.
   const username = payload.email.includes("@") ? payload.email.split("@")[0] : payload.email;
   const result = await request<BackendUserResponse>("/register", {
     method: "POST",
@@ -256,6 +256,9 @@ export interface PerformanceData {
   currentScore: number;
 }
 
+const SCORE_INCORRECT_DELTA = -5;
+const SCORE_CORRECT_DELTA = 10;
+
 export async function getPerformanceInfo(accessToken: string): Promise<PerformanceData> {
   const userId = extractUserIdFromToken(accessToken) ?? accessToken;
   const result = await request<BackendPerformanceResponse>(`/performance/${encodeURIComponent(userId)}`, {
@@ -280,7 +283,10 @@ export async function getPerformanceInfo(accessToken: string): Promise<Performan
 export async function addPerformanceResult(accessToken: string, isCorrect: boolean): Promise<PerformanceData> {
   const base = await getPerformanceInfo(accessToken);
   const latest = base.history.length ? base.history[base.history.length - 1] : undefined;
-  const currentScore = Math.max(0, base.currentScore + (isCorrect ? 10 : -5));
+  const currentScore = Math.max(
+    0,
+    base.currentScore + (isCorrect ? SCORE_CORRECT_DELTA : SCORE_INCORRECT_DELTA),
+  );
   const nextRecord: PerformanceRecord = {
     id: `local-${Date.now()}`,
     userId: latest?.userId ?? (extractUserIdFromToken(accessToken) ?? "anonymous"),
