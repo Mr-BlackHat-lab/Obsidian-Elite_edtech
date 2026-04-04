@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AuthLayout from "../components/AuthLayout";
 import { verifyEmail } from "../lib/api";
 
 export default function VerifyEmailPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Verifying your email...");
@@ -42,6 +43,20 @@ export default function VerifyEmailPage() {
       canceled = true;
     };
   }, [searchParams]);
+
+  useEffect(() => {
+    if (status !== "success") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      navigate(loginPath, { replace: true });
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [status, navigate]);
 
   return (
     <AuthLayout

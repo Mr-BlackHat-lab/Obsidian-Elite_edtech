@@ -8,18 +8,6 @@ interface CheckInboxState {
   previewUrl?: string;
 }
 
-function getSafeHttpUrl(value: string): string | null {
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      return parsed.toString();
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 export default function CheckInboxPage() {
   const location = useLocation();
   const state = (location.state as CheckInboxState | null) ?? null;
@@ -31,7 +19,6 @@ export default function CheckInboxPage() {
     message: "",
   });
   const [sending, setSending] = useState(false);
-  const safePreviewUrl = getSafeHttpUrl(previewUrl);
 
   const loginPath = "/login";
 
@@ -98,16 +85,26 @@ export default function CheckInboxPage() {
         />
       </div>
 
-      <button className="button-secondary" type="button" onClick={() => void onResend()} disabled={sending}>
-        {sending ? "Sending..." : "Resend verification email"}
-      </button>
+      <div className="check-inbox-actions">
+        <button
+          className="button-secondary resend-button"
+          type="button"
+          onClick={() => void onResend()}
+          disabled={sending}
+        >
+          {sending ? "Sending..." : "Resend verification email"}
+        </button>
+      </div>
 
       {status.type === "success" ? <div className="status-banner status-success">{status.message}</div> : null}
       {status.type === "error" ? <div className="status-banner status-error">{status.message}</div> : null}
 
-      {safePreviewUrl ? (
-        <div className="status-banner status-info">
-          Dev preview link: <a href={safePreviewUrl}>{safePreviewUrl}</a>
+      {previewUrl ? (
+        <div className="status-banner status-info preview-link-banner">
+          <span>Dev preview link:</span>
+          <a className="preview-link-anchor" href={previewUrl}>
+            {previewUrl}
+          </a>
         </div>
       ) : null}
     </AuthLayout>

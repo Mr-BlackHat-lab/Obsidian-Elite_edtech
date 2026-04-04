@@ -14,7 +14,8 @@ export default function ProtectedRoute() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    // TEMPORARY: disabled auth redirect
+    // return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;

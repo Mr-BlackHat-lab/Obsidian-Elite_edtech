@@ -8,7 +8,6 @@
   --border-focus: rgba(147, 112, 255, 0.5);
   
   --text-main: #ffffff;
-  --text-muted: rgba(255, 255, 255, 0.65);
   --accent: #ffffff;
   --accent-strong: #d1d5db;
   --accent-glow: rgba(255, 255, 255, 0.4);
@@ -371,6 +370,43 @@ a:hover {
   margin-top: 24px;
   font-size: 14px;
   text-align: center;
+}
+
+.check-inbox-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.resend-button {
+  min-width: 230px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--text-main);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.resend-button:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.12));
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.preview-link-banner {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.preview-link-anchor {
+  line-break: anywhere;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.preview-link-anchor:hover {
+  color: #ffffff;
 }
 
 /* STATUS BANNER */
