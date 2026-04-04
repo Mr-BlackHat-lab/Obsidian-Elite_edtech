@@ -41,4 +41,5 @@ export interface SessionStats {
 export type ExtensionMessage =
   | { type: "SHOW_QUIZ"; question: Question; session_id: string }
   | { type: "UPDATE_BADGE"; status: "ACTIVE" | "IDLE"; scorePercent?: number }
-  | { type: "GET_VIDEO_STATUS" };
+  | { type: "GET_VIDEO_STATUS" }
+  | { type: "RESET_SESSION" };

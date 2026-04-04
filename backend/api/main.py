@@ -15,6 +15,8 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 from api.routes.auth import router as auth_router
 from api.routes.performance import router as performance_router
 from api.routes.transcription import router as transcription_router
+from api.routes.free_generation import router as free_generation_router
+from services.in_memory_storage import get_in_memory_db
 from api.routes.users import router as users_router
 
 
@@ -47,6 +49,7 @@ async def _warmup_whisper() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    mongodb_url = os.getenv("MONGODB_URL", "mongodb://mongo:27017/learnpulse")
     mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/learnpulse")
     client = AsyncIOMotorClient(mongodb_url)
     db_name = mongodb_url.rsplit("/", 1)[-1] if "/" in mongodb_url else "learnpulse"
