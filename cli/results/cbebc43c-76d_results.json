@@ -1,0 +1,39 @@
+{
+  "summary": {
+    "session_id": "cbebc43c-76d",
+    "user_id": "anonymous",
+    "submitted_at": "2026-04-04T05:48:34.303420+00:00",
+    "total_questions": 3,
+    "correct_answers": 2,
+    "accuracy": 66.67
+  },
+  "results": [
+    {
+      "question_id": "demo_q1",
+      "question": "What is the primary purpose of a Docker volume?",
+      "difficulty": "easy",
+      "concept_tag": "Docker fundamentals",
+      "user_answer": "A",
+      "correct": true,
+      "explanation": "Docker volumes keep data independent from a specific container so data survives container recreation."
+    },
+    {
+      "question_id": "demo_q2",
+      "question": "Which Kubernetes object is used to keep a desired number of pod replicas running?",
+      "difficulty": "medium",
+      "concept_tag": "Kubernetes basics",
+      "user_answer": "B",
+      "correct": true,
+      "explanation": "A Deployment manages ReplicaSets and ensures the desired pod count and rollout behavior."
+    },
+    {
+      "question_id": "demo_q3",
+      "question": "In containerized apps, what does an Ingress mainly provide?",
+      "difficulty": "medium",
+      "concept_tag": "Kubernetes networking",
+      "user_answer": "C",
+      "correct": false,
+      "explanation": "Ingress defines external access rules and routes HTTP/HTTPS traffic to services."
+    }
+  ]
+}
