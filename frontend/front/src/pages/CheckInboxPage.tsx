@@ -8,6 +8,18 @@ interface CheckInboxState {
   previewUrl?: string;
 }
 
+function getSafeHttpUrl(value: string): string | null {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export default function CheckInboxPage() {
   const location = useLocation();
   const state = (location.state as CheckInboxState | null) ?? null;
@@ -19,6 +31,7 @@ export default function CheckInboxPage() {
     message: "",
   });
   const [sending, setSending] = useState(false);
+  const safePreviewUrl = getSafeHttpUrl(previewUrl);
 
   const loginPath = "/login";
 
@@ -92,9 +105,9 @@ export default function CheckInboxPage() {
       {status.type === "success" ? <div className="status-banner status-success">{status.message}</div> : null}
       {status.type === "error" ? <div className="status-banner status-error">{status.message}</div> : null}
 
-      {previewUrl ? (
+      {safePreviewUrl ? (
         <div className="status-banner status-info">
-          Dev preview link: <a href={previewUrl}>{previewUrl}</a>
+          Dev preview link: <a href={safePreviewUrl}>{safePreviewUrl}</a>
         </div>
       ) : null}
     </AuthLayout>

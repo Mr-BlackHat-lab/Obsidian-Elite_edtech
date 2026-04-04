@@ -19,10 +19,20 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [2/3] Waiting for backend to be healthy...
+set /a MAX_ATTEMPTS=40
+set /a ATTEMPT=0
 :wait_loop
 timeout /t 3 /nobreak >nul
+set /a ATTEMPT+=1
 docker inspect --format="{{.State.Health.Status}}" learnpulse_backend 2>nul | findstr "healthy" >nul
 if %errorlevel% neq 0 (
+    if %ATTEMPT% geq %MAX_ATTEMPTS% (
+        echo.
+        echo ERROR: Backend health check timed out after %MAX_ATTEMPTS% attempts.
+        echo Check service logs with: docker-compose logs -f backend
+        pause
+        exit /b 1
+    )
     echo     still starting...
     goto wait_loop
 )
@@ -37,12 +47,5 @@ echo.
 echo   Logs (all)   : docker-compose logs -f
 echo   Logs (celery): docker-compose logs -f celery
 echo   Stop all     : docker-compose down
-echo.
-echo ============================================
-echo  Extension is already built in extension/dist
-echo  Load it in Chrome:
-echo    chrome://extensions -> Developer Mode -> Load Unpacked
-echo    Select: %~dp0extension
-echo ============================================
 echo.
 pause

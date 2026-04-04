@@ -8,6 +8,7 @@
   --border-focus: rgba(147, 112, 255, 0.5);
   
   --text-main: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.65);
   --accent: #ffffff;
   --accent-strong: #d1d5db;
   --accent-glow: rgba(255, 255, 255, 0.4);
