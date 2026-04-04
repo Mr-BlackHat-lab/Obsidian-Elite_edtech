@@ -303,6 +303,7 @@ def process_video_task(self, session_id: str, video_url: str) -> None:
             loop.run_until_complete(_persist_cached())
             return
 
+        generation_source = "youtube_captions"
         try:
             transcript = loop.run_until_complete(get_transcript(video_url))
         except ValueError as exc:
