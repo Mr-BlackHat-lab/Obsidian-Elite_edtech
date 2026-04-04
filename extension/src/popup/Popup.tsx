@@ -432,7 +432,7 @@ function Popup() {
         <div className="lp-popup-empty">
           <div className="lp-popup-empty-icon">⚠️</div>
           <p className="lp-popup-empty-text">
-            No captions found for this video. Try a video with subtitles enabled.
+            We couldn't finish processing this video right now. Please try again in a moment or play a different video.
           </p>
         </div>
       ) : active ? (
