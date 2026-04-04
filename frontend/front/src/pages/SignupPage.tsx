@@ -9,6 +9,11 @@ import { useAuth } from "../context/AuthContext";
 const signupSchema = z
   .object({
     name: z.string().trim().min(2, "Name must be at least 2 characters"),
+    username: z
+      .string()
+      .trim()
+      .min(3, "Username must be at least 3 characters")
+      .regex(/^[a-zA-Z0-9_]+$/, "Username can use letters, numbers, and underscore only"),
     email: z.string().trim().email("Enter a valid email"),
     password: z
       .string()
@@ -39,6 +44,7 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
     defaultValues: {
       name: "",
+      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -53,6 +59,7 @@ export default function SignupPage() {
     try {
       const result = await signup({
         name: values.name,
+        username: values.username,
         email: values.email,
         password: values.password,
       });
@@ -96,6 +103,21 @@ export default function SignupPage() {
             {...register("name")}
           />
           {errors.name ? <p className="field-error">{errors.name.message}</p> : null}
+        </div>
+
+        <div className="field">
+          <label className="field-label" htmlFor="username">
+            Username
+          </label>
+          <input
+            id="username"
+            type="text"
+            className="field-input"
+            placeholder="your_username"
+            autoComplete="username"
+            {...register("username")}
+          />
+          {errors.username ? <p className="field-error">{errors.username.message}</p> : null}
         </div>
 
         <div className="field">

@@ -7,7 +7,7 @@ import AuthLayout from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 
 const loginSchema = z.object({
-  email: z.string().trim().email("Enter a valid email"),
+  username: z.string().trim().min(3, "Username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -25,7 +25,7 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
+      username: "",
       password: "",
     },
   });
@@ -59,18 +59,18 @@ export default function LoginPage() {
 
       <form className="form" onSubmit={onSubmit} noValidate>
         <div className="field">
-          <label className="field-label" htmlFor="email">
-            Email
+          <label className="field-label" htmlFor="username">
+            Username
           </label>
           <input
-            id="email"
-            type="email"
+            id="username"
+            type="text"
             className="field-input"
-            placeholder="you@example.com"
-            autoComplete="email"
-            {...register("email")}
+            placeholder="your_username"
+            autoComplete="username"
+            {...register("username")}
           />
-          {errors.email ? <p className="field-error">{errors.email.message}</p> : null}
+          {errors.username ? <p className="field-error">{errors.username.message}</p> : null}
         </div>
 
         <div className="field">

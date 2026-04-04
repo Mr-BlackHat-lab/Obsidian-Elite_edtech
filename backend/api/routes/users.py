@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from api.routes.auth import get_current_user, pwd_context
+from api.routes.auth import get_current_user, hash_password
 from models.user import UserUpdateRequest
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -81,7 +81,7 @@ async def update_me(
         updates["email"] = req.email
 
     if req.password is not None:
-        updates["password_hash"] = pwd_context.hash(req.password)
+        updates["password_hash"] = hash_password(req.password)
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")

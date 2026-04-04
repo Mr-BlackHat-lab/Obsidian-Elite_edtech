@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from jose import jwt
-from passlib.context import CryptContext
 from starlette.config import Config
 
 
@@ -17,8 +19,6 @@ from jose import JWTError
 from models.user import User, UserCreateRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = os.getenv("JWT_SECRET", "changeme")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
@@ -35,6 +35,38 @@ oauth.register(
     api_base_url="https://api.github.com/",
     client_kwargs={"scope": "user:email"},
 )
+
+
+PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", "390000"))
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        bytes.fromhex(salt),
+        PBKDF2_ITERATIONS,
+    )
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt}${dk.hex()}"
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        scheme, iterations_s, salt, digest_hex = encoded.split("$", 3)
+        if scheme != "pbkdf2_sha256":
+            return False
+
+        iterations = int(iterations_s)
+        candidate = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt),
+            iterations,
+        ).hex()
+        return hmac.compare_digest(candidate, digest_hex)
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -79,7 +111,7 @@ async def register(req: UserCreateRequest, request: Request) -> dict:
     if req.email:
         if await db.users.find_one({"email": req.email}):
             raise HTTPException(status_code=409, detail="Email already registered")
-    password_hash = pwd_context.hash(req.password)
+    password_hash = hash_password(req.password)
     user = User(
         username=req.username,
         email=req.email,
@@ -95,7 +127,7 @@ async def register(req: UserCreateRequest, request: Request) -> dict:
 async def login(req: UserCreateRequest, request: Request) -> dict:
     db = request.app.state.db
     user = await db.users.find_one({"username": req.username})
-    if not user or not pwd_context.verify(req.password, user.get("password_hash", "")):
+    if not user or not verify_password(req.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"user_id": user["user_id"], "username": user["username"]})
     return {"user_id": user["user_id"], "username": user["username"], "token": token}

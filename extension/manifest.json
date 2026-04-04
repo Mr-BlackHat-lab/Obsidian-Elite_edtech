@@ -3,18 +3,14 @@
   "name": "LearnPulse AI",
   "version": "1.0.0",
   "description": "Active recall learning enforcement layer for any educational video.",
-  "permissions": [
-    "tabs",
-    "storage",
-    "tabCapture",
-    "activeTab"
-  ],
+  "permissions": ["tabs", "storage", "tabCapture", "activeTab"],
   "host_permissions": [
     "*://www.youtube.com/*",
     "*://*.youtube.com/*",
     "*://*.udemy.com/*",
     "*://*.coursera.org/*",
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
   ],
   "background": {
     "service_worker": "background.js"
