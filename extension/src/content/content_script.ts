@@ -201,9 +201,15 @@ function blockNavigationKeys(e: KeyboardEvent): void {
 // ============================================================
 // 5. FETCH QUESTION FROM BACKEND (FREE UNLIMITED API)
 // ============================================================
+<<<<<<< HEAD
 async function fetchQuestionForCurrentTime(sid: string, currentTime: number): Promise<Question | null> {
   const stored = await chrome.storage.local.get(["transcript"]);
   const fullTranscript: string =
+=======
+async function fetchQuestion(sid: string): Promise<Question | null> {
+  const stored = await chrome.storage.local.get(["transcript"]);
+  const transcriptChunk: string =
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
     typeof stored.transcript === "string" && stored.transcript
       ? stored.transcript
       : "Educational video content about programming and technology.";

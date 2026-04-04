@@ -1,3 +1,25 @@
+<<<<<<< HEAD
+=======
+# OS / filesystem
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment files
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
 # Python
 __pycache__/
 *.py[cod]
@@ -8,6 +30,7 @@ env/
 venv/
 ENV/
 build/
+<<<<<<< HEAD
 develop-eggs/
 dist/
 downloads/
@@ -24,19 +47,58 @@ wheels/
 *.egg
 
 # Node
+=======
+coverage/
+*.tsbuildinfo
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+
+# Build and distribution
+build/
+dist/
+*.log
+
+# Node / frontend
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+<<<<<<< HEAD
 
 # Extension build
 extension/dist/*.js.map
 
 # IDE
+=======
+pnpm-debug.log*
+*.tsbuildinfo
+
+# Extension/frontend build outputs
+frontend/dist/
+frontend/build/
+extension/dist/
+extension/build/
+
+# IDE / OS
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
 .vscode/
 .idea/
 *.swp
 *.swo
+<<<<<<< HEAD
 *~
 
 # OS
@@ -57,3 +119,14 @@ Thumbs.db
 # Temporary
 *.tmp
 *.temp
+=======
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+
+# Mongo / Redis local data
+mongo_data/
+redis_data/
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7

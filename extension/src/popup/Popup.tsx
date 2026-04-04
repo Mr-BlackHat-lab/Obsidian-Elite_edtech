@@ -435,7 +435,11 @@ function Popup() {
             No captions found for this video. Try a video with subtitles enabled.
           </p>
         </div>
+<<<<<<< HEAD
       ) : active && stats.questionsAsked > 0 ? (
+=======
+      ) : active ? (
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
         <Dashboard stats={stats} />
       ) : active && stats.questionsAsked === 0 ? (
         <div className="lp-popup-empty">
@@ -469,6 +473,7 @@ function Popup() {
       {/* ── Footer ── */}
       <div className="lp-popup-footer">
         <span className="lp-popup-version">LearnPulse v1.0{deviceUserId ? ` · ${deviceUserId}` : ""}</span>
+<<<<<<< HEAD
         {active && stats.questionsAsked > 0 && extensionEnabled && (
           <button
             onClick={() => {
@@ -498,6 +503,16 @@ function Popup() {
                     console.log("[LP Popup] Session reset complete");
                   });
                 });
+=======
+        {active && extensionEnabled && (
+          <button
+            onClick={() => {
+              chrome.storage.local.clear(() => {
+                setActive(false);
+                setSessionStatus("idle");
+                setStats(EMPTY_STATS);
+                setExtensionEnabled(true);
+>>>>>>> b34756bfd62230f4f9cbf47cc29669cde384a7f7
               });
             }}
             className="lp-reset-btn"
