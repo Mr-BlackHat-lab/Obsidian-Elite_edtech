@@ -32,16 +32,16 @@
 ║                                                                  ║
 ║  ╔══════════════════ 🧠 QUIZ OVERLAY ═══════════════════════╗   ║
 ║  ║                                                           ║   ║
-║  ║  Quick Check! — Neural Networks                          ║   ║
-║  ║  ─────────────────────────────────────────────────────   ║   ║
-║  ║  What is the main purpose of a loss function?            ║   ║
+║  ║  Quick Check! — Neural Networks                           ║   ║
+║  ║  ─────────────────────────────────────────────────────    ║   ║
+║  ║  What is the main purpose of a loss function?             ║   ║
 ║  ║                                                           ║   ║
-║  ║   ○  A) To initialize model weights                      ║   ║
-║  ║   ●  B) To measure prediction error              ✓ +10  ║   ║
-║  ║   ○  C) To normalize the input data                      ║   ║
-║  ║   ○  D) To split the training dataset                    ║   ║
+║  ║   ○  A) To initialize model weights                       ║   ║
+║  ║   ●  B) To measure prediction error              ✓ +10    ║   ║
+║  ║   ○  C) To normalize the input data                       ║   ║
+║  ║   ○  D) To split the training dataset                     ║   ║
 ║  ║                                                           ║   ║
-║  ║  ████████████████████░░░░  Score: 85%                    ║   ║
+║  ║  ████████████████████░░░░  Score: 85%                     ║   ║
 ║  ║  Topic: Neural Networks  |  Difficulty: Medium            ║   ║
 ║  ╚═══════════════════════════════════════════════════════════╝   ║
 ╚══════════════════════════════════════════════════════════════════╝
@@ -52,12 +52,12 @@
 ║                  📊  Performance Dashboard                       ║
 ║                                                                  ║
 ║   Overall Accuracy          Topic Breakdown                      ║
-║   ┌──────────────┐          ┌─────────────────────────────┐     ║
-║   │     85%      │          │ Neural Networks   ████ 90%  │     ║
-║   │  ████████░░  │          │ Backpropagation   ███░ 70%  │     ║
+║   ┌──────────────┐          ┌─────────────────────────────┐      ║
+║   │     85%      │          │ Neural Networks   ████ 90%  │      ║
+║   │  ████████░░  │          │ Backpropagation   ███░ 70%  │      ║
 ║   │  17/20 ✓     │          │ Optimization      ██░░ 55% ⚠│     ║
-║   └──────────────┘          │ Loss Functions    █████100% │     ║
-║                             └─────────────────────────────┘     ║
+║   └──────────────┘          │ Loss Functions    █████100% │      ║
+║                             └─────────────────────────────┘      ║
 ║   ⚠ Weak Topics: Optimization                                   ║
 ║   💡 Revise "Optimization" before your next session             ║
 ╚══════════════════════════════════════════════════════════════════╝
@@ -87,14 +87,14 @@
 
 ```
 ╔══════════════════════════════════════════════════════════════════════╗
-║                         CLIENT LAYER                                ║
+║                         CLIENT LAYER                                 ║
 ║                                                                      ║
-║   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐   ║
-║   │  🌐 Browser     │  │  🔌 Chrome      │  │  💻 Python      │   ║
-║   │     Frontend    │  │    Extension    │  │      CLI        │   ║
-║   │                 │  │  (TypeScript)   │  │    (Click)      │   ║
-║   └────────┬────────┘  └────────┬────────┘  └────────┬────────┘   ║
-╚════════════╪════════════════════╪════════════════════╪════════════╝
+║   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐      ║
+║   │  🌐 Browser     │ │  🔌 Chrome      │  │  💻 Python      │     ║
+║   │     Frontend    │  │    Extension    │  │      CLI        │      ║
+║   │                 │  │  (TypeScript)   │  │    (Click)      │      ║
+║   └────────┬────────┘  └────────┬────────┘  └────────┬────────┘      ║
+╚════════════╪════════════════════╪════════════════════╪═══════════════╝
              │                   │                    │
              └───────────────────┼────────────────────┘
                                  │
@@ -104,18 +104,18 @@
 ║                        FASTAPI BACKEND                               ║
 ║                         (Python 3.11+)                               ║
 ║                                                                      ║
-║  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ║
-║  │   🔐 /auth/*     │  │   👤 /users/*    │  │  🎓 Learning     │  ║
-║  │                  │  │                  │  │                  │  ║
-║  │ POST /register   │  │ GET    /me       │  │ POST /transcribe │  ║
-║  │ POST /login      │  │ PUT    /me       │  │ POST /generate-  │  ║
-║  │ GET  /github     │  │ DELETE /me       │  │      questions   │  ║
-║  │ GET  /github/    │  │ GET    /{id}     │  │ POST /submit-    │  ║
-║  │      callback    │  │ GET    /         │  │      answer      │  ║
-║  │                  │  │                  │  │ GET  /session/   │  ║
-║  │ JWT + bcrypt     │  │ JWT Protected    │  │ GET  /performance│  ║
-║  │ GitHub OAuth     │  │ Pagination       │  │ WS   /ws/live    │  ║
-║  └──────────────────┘  └──────────────────┘  └──────────────────┘  ║
+║  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐    ║
+║  │   🔐 /auth/*     │  │   👤 /users/*   │  │  🎓 Learning     │   ║
+║  │                  │  │                  │  │                  │    ║
+║  │ POST /register   │  │ GET    /me       │  │ POST /transcribe │    ║
+║  │ POST /login      │  │ PUT    /me       │  │ POST /generate-  │    ║
+║  │ GET  /github     │  │ DELETE /me       │  │      questions   │    ║
+║  │ GET  /github/    │  │ GET    /{id}     │  │ POST /submit-    │    ║
+║  │      callback    │  │ GET    /         │  │      answer      │    ║
+║  │                  │  │                  │  │ GET  /session/   │    ║
+║  │ JWT + bcrypt     │  │ JWT Protected    │  │ GET  /performance│    ║
+║  │ GitHub OAuth     │  │ Pagination       │  │ WS   /ws/live    │    ║
+║  └──────────────────┘  └──────────────────┘  └──────────────────┘    ║
 ╚══════════════════════════════════╪═══════════════════════════════════╝
                                    │
               ┌────────────────────┼────────────────────┐
@@ -291,10 +291,10 @@ Chrome Extension                  WebSocket /ws/live              Backend
 
 | Method | URL | Auth | Description | Status |
 |--------|-----|------|-------------|--------|
-| `POST` | `/auth/register` | ❌ | Create new account | ✅ Implemented |
-| `POST` | `/auth/login` | ❌ | Login, receive JWT | ✅ Implemented |
-| `GET` | `/auth/github` | ❌ | Start GitHub OAuth | ✅ Implemented |
-| `GET` | `/auth/github/callback` | ❌ | GitHub OAuth callback | ✅ Implemented |
+| `POST` | `/auth/register` | ✅ | Create new account | ✅ Implemented |
+| `POST` | `/auth/login` | ✅ | Login, receive JWT | ✅ Implemented |
+| `GET` | `/auth/github` | ✅ | Start GitHub OAuth | ✅ Implemented |
+| `GET` | `/auth/github/callback` | ✅ | GitHub OAuth callback | ✅ Implemented |
 
 **Register request:**
 ```json
@@ -342,12 +342,12 @@ Chrome Extension                  WebSocket /ws/live              Backend
 
 | Method | URL | Auth | Description | Status |
 |--------|-----|------|-------------|--------|
-| `POST` | `/transcribe` | ❌ | Submit YouTube URL for processing | ✅ Implemented |
-| `POST` | `/generate-questions` | ❌ | Generate questions from transcript | ✅ Implemented |
-| `POST` | `/submit-answer` | ❌ | Submit answer, get score update | ✅ Implemented |
-| `GET` | `/session/{session_id}` | ❌ | Get session details | ✅ Implemented |
-| `GET` | `/performance/{user_id}` | ❌ | Get user performance report | ✅ Implemented |
-| `WS` | `/ws/live` | ❌ | Live stream quiz WebSocket | ✅ Implemented |
+| `POST` | `/transcribe` | ✅ | Submit YouTube URL for processing | ✅ Implemented |
+| `POST` | `/generate-questions` | ✅ | Generate questions from transcript | ✅ Implemented |
+| `POST` | `/submit-answer` | ✅ | Submit answer, get score update | ✅ Implemented |
+| `GET` | `/session/{session_id}` | ✅ | Get session details | ✅ Implemented |
+| `GET` | `/performance/{user_id}` | ✅ | Get user performance report | ✅ Implemented |
+| `WS` | `/ws/live` | ✅ | Live stream quiz WebSocket | ✅ Implemented |
 
 **Transcribe request:**
 ```json
